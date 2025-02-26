@@ -39,21 +39,45 @@ def parse_manifest(manifest_path):
         manifest_data = json.load(f)
     return manifest_data
 
+def extract_author(soup):
+    author_tag = soup.find("div", {"class": "Fm8Cnb"})
+    if author_tag:
+        author = author_tag.get_text(separator="\n").split("\n")[0].strip()
+        return author
+    return "Unknown"
+
+def extract_last_updated(soup):
+    last_updated_li = soup.find("li", {"class": "ZbWJPd uBIrad"})
+    if last_updated_li:
+        divs = last_updated_li.find_all("div")
+        if len(divs) > 1:
+            raw_date = divs[1].text.strip()
+
+            try:
+                formatted_date = datetime.strptime(raw_date, "%B %d, %Y").strftime("%Y-%m-%d")
+                return formatted_date
+            except ValueError:
+                return "0000-00-00"
+        
+    return "0000-00-00"
+
 def scrape_extension_data(extension_guid):
     url = f"{extension_webstore_url}{extension_guid}"
     response = requests.get(url)
 
     if response.status_code == 200:
         soup = BeautifulSoup(response.text, "html.parser")
-        name = soup.find("meta", {"property": "og.title"})
-        author = soup.find("meta", {"name": "author"})
-        publish_date = soup.find("meta", {"itemprop": "datePublished"})
-        last_updated = soup.find("meta", {"itemprop": "dateModified"})
+
+        name_tag = soup.find("h1", {"class": "Pa2dE"})
+        name = name_tag.text.strip() if name_tag else "Unknown"
+
+        author = extract_author(soup)
+        last_updated = extract_last_updated(soup)
+
         return {
-            "name": name["content"] if name else "Unknown",
-            "author": author["content"] if author else "Unknown",
-            "publish_date": publish_date["content"] if publish_date else None,
-            "last_updated": last_updated["content"] if last_updated else None
+            "name": name,
+            "author": author,
+            "last_updated": last_updated
         }
     return {}
 
@@ -69,7 +93,6 @@ def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
         manifest_data.get("author", "Unknown"),
         manifest_data.get("homepage_url", "Unknown"),
         True,
-        manifest_data.get("publish_date") or "0000-00-00",
         manifest_data.get("last_updated") or "0000-00-00",
         downloaded_date,
         absolute_path
@@ -80,16 +103,13 @@ def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
     #    print(extension_values[i])
 
     cursor.execute("""
-        INSERT INTO Extension (extension_guid, name, version, manifest_json, author, homepage_url, is_active, publish_date, last_updated, downloaded_date, absolute_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        INSERT INTO Extension (extension_guid, name, version, manifest_json, author, homepage_url, is_active, last_updated, downloaded_date, absolute_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         extension_values
     )
     conn.commit()
 
-def main():
-    conn = init_db_connection()
-    extension_guid = "imbncilibdpngpkpbnhadjfcjoplkpfc"
-
+def run_scraper(conn, extension_guid):
     file_path = download_extension(extension_guid)
     if not file_path:
         print("Failed to download extension.")
@@ -102,6 +122,16 @@ def main():
 
     insert_extension_data(conn, extension_guid, manifest_data, extract_path)
     print("Extension data inserted successfully.")
+    return
+
+def main():
+    conn = init_db_connection()
+    extension_guid = "imbncilibdpngpkpbnhadjfcjoplkpfc"
+    run_scraper(conn, extension_guid)
+
+    extension_guid2 = "eimadpbcbfnmbkopoojfekhnkhdbieeh"
+    run_scraper(conn, extension_guid2)
+
     conn.close()
 
 if __name__ == "__main__":
