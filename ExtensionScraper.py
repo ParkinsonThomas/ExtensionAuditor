@@ -5,6 +5,7 @@ import os
 import zipfile
 from bs4 import BeautifulSoup
 from datetime import datetime
+from GUIDListCreator import main as GUIDListMain
 
 db_file = "ExtensionDB.db"
 extension_webstore_url = "https://chromewebstore.google.com/detail/"
@@ -109,7 +110,16 @@ def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
     )
     conn.commit()
 
+def extension_exists(conn, extension_guid):
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM Extension WHERE extension_guid = ?", (extension_guid, ))
+    return cursor.fetchone() is not None
+
 def run_scraper(conn, extension_guid):
+    if extension_exists(conn, extension_guid):
+        print(f"Skipping {extension_guid}, already exists in database.")
+        return
+
     file_path = download_extension(extension_guid)
     if not file_path:
         print("Failed to download extension.")
@@ -125,15 +135,16 @@ def run_scraper(conn, extension_guid):
     return
 
 def main():
+    guids = GUIDListMain()
+
+    if guids == []:
+        print("Abort.")
+        return
+
     conn = init_db_connection()
-    extension_guid = "imbncilibdpngpkpbnhadjfcjoplkpfc"
-    run_scraper(conn, extension_guid)
-
-    extension_guid2 = "eimadpbcbfnmbkopoojfekhnkhdbieeh"
-    run_scraper(conn, extension_guid2)
-
+    for guid in guids:
+        run_scraper(conn, guid)
     conn.close()
 
 if __name__ == "__main__":
     main()
-    
