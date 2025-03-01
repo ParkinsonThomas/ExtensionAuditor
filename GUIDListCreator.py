@@ -11,7 +11,6 @@ def get_extension_guids(url, result_cap):
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # Find all div elements containing 'data-item-id'
     extension_divs = soup.find_all("div", attrs={"data-item-id": True})
     
     guids = [div["data-item-id"] for div in extension_divs]
@@ -29,14 +28,15 @@ def save_to_file(guids):
             file.write(guid + "\n")
     print(f"Saved {len(guids)} extension GUIDs to {filename}")
 
-def main():
-    url_category = "https://chromewebstore.google.com/category/extensions"
-    guids = get_extension_guids(url_category, 30)
+def main(config):
+    scraper_config = config.get("scraper", {})
+    url_category = scraper_config.get("category_url", "https://chromewebstore.google.com/category/extensions")
+    max_guids = scraper_config.get("max_guids", 30)
+
+    guids = get_extension_guids(url_category, max_guids)
 
     if guids:
         print(f"Extracted {len(guids)} GUIDs.")
         save_to_file(guids)
-        return guids
     else:
         print("No GUIDs were found.")
-        return []

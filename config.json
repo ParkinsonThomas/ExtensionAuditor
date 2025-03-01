@@ -1,0 +1,37 @@
+{
+    "database": {
+        "db": "ExtensionDB.db"
+    },
+
+    "scraper_info": {
+        "category_url": "https://chromewebstore.google.com/category/extensions",
+        "max_guids": 30
+    },
+
+    "storage": {
+        "download_path": "Extensions_Downloaded",
+        "extract_path": "Extensions_Extracted"
+    },
+
+    "misc": {
+        "debug": true
+    },
+
+    "modules": [
+        {
+            "name": "GUIDListCreator",
+            "enabled": true,
+            "debug": false
+        },
+        {
+            "name": "ExtensionScraper",
+            "enabled": true,
+            "debug": false
+        },
+        {
+            "name": "ExtensionAuditor",
+            "enabled": false,
+            "debug": true
+        }
+    ]
+}

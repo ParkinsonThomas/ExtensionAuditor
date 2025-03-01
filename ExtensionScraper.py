@@ -10,12 +10,8 @@ from GUIDListCreator import main as GUIDListMain
 db_file = "ExtensionDB.db"
 extension_webstore_url = "https://chromewebstore.google.com/detail/"
 
-def init_db_connection():
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA foreign_keys = ON;")
-    conn.commit()
-    return conn
+def init_db_connection(db_file):
+    return sqlite3.connect(db_file)
 
 def download_extension(extension_guid, save_path="Extensions_Downloaded"):
     url = f"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=91.0.4472.77&acceptformat=crx2,crx3&x=id%3D{extension_guid}%26uc"
@@ -134,17 +130,15 @@ def run_scraper(conn, extension_guid):
     print("Extension data inserted successfully.")
     return
 
-def main():
-    guids = GUIDListMain()
+def main(config):
 
-    if guids == []:
-        print("Abort.")
-        return
+    db_file = config["database"]["db"]
 
-    conn = init_db_connection()
+    guids_file = "GUID_List.txt"
+    with open(guids_file, "r") as file:
+        guids = [line.strip() for line in file.readlines()]
+
+    conn = init_db_connection(db_file)
     for guid in guids:
         run_scraper(conn, guid)
     conn.close()
-
-if __name__ == "__main__":
-    main()
