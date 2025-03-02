@@ -32,6 +32,11 @@
             "name": "ExtensionAuditor",
             "enabled": false,
             "debug": true
+        },
+        {
+            "name": "API_Auditor",
+            "enabled": true,
+            "debug": true
         }
     ]
 }
