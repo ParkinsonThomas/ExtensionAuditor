@@ -20,7 +20,7 @@
     "modules": [
         {
             "name": "GUIDListCreator",
-            "enabled": true,
+            "enabled": false,
             "debug": false
         },
         {
