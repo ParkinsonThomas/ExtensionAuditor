@@ -19,24 +19,20 @@
 
     "modules": [
         {
-            "name": "GUIDListCreator",
-            "enabled": false,
-            "debug": false
+            "name": "GUID_ListCreator",
+            "enabled": false
         },
         {
-            "name": "ExtensionScraper",
-            "enabled": true,
-            "debug": false
-        },
-        {
-            "name": "ExtensionAuditor",
-            "enabled": false,
-            "debug": true
+            "name": "Extension_Scraper",
+            "enabled": true
         },
         {
             "name": "API_Auditor",
-            "enabled": true,
-            "debug": true
+            "enabled": true
+        },
+        {
+            "name": "API_Scraper",
+            "enabled": true
         }
     ]
 }
