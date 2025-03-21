@@ -54,12 +54,12 @@ def main(config):
         "https://chromewebstore.google.com/category/extensions/make_chrome_yours/functionality",
         "https://chromewebstore.google.com/category/extensions/make_chrome_yours/privacy"
     ]
-    max_guids = scraper_config.get("max_guids", 30)
+    max_guids = scraper_config.get("max_guids", 200)
 
-    #for url in url_categories:
-    guids = get_extension_guids(url_categories[0], max_guids)
+    for url in url_categories:
+        guids = get_extension_guids(url, max_guids)
 
-    if guids:
-        save_to_file(guids)
-    else:
-        print(f"No GUIDs were found on {url_categories[0]}.")
+        if guids:
+            save_to_file(guids)
+        else:
+            print(f"No GUIDs were found on {url_categories[0]}.")

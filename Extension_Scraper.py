@@ -5,9 +5,8 @@ import os
 import zipfile
 from bs4 import BeautifulSoup
 from datetime import datetime
-from GUIDListCreator import main as GUIDListMain
+from GUID_ListCreator import main as GUIDListMain
 
-db_file = "ExtensionDB.db"
 extension_webstore_url = "https://chromewebstore.google.com/detail/"
 
 def init_db_connection(db_file):
@@ -112,6 +111,7 @@ def extension_exists(conn, extension_guid):
     return cursor.fetchone() is not None
 
 def run_scraper(conn, extension_guid):
+
     if extension_exists(conn, extension_guid):
         print(f"Skipping {extension_guid}, already exists in database.")
         return
@@ -133,6 +133,7 @@ def run_scraper(conn, extension_guid):
 def main(config):
 
     db_file = config["database"]["db"]
+    debug = config["misc"]["debug"]
 
     guids_file = "GUID_List.txt"
     with open(guids_file, "r") as file:

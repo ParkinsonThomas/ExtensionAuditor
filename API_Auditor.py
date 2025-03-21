@@ -41,12 +41,12 @@ def audit_api_links(api_usage, conn):
 
     api_to_audit = set()
     for api_tuple in api_usage:
-        name = api_tuple[0]
-        if get_url_entry(conn, name) == False:
-            if get_api_entry(conn, name) == None:
-                api_to_audit.add(name)
+        api_url = api_tuple[0]
+        if get_url_entry(conn, api_url) == False:
+            if get_api_entry(conn, api_url) == None:
+                api_to_audit.add(api_url)
             else:
-                api_list.append(name)
+                api_list.append(api_url)
 
     if len(api_to_audit) > 0:
 
@@ -114,9 +114,9 @@ def analyse_extension(extension_id, extension_path, conn):
             insert_extension_api(conn, extension_id, api_id, path, line)
             inserted_apis.add(api)
 
-def get_api_entry(conn, api_name):
+def get_api_entry(conn, api_url):
     cursor = conn.cursor()
-    cursor.execute("SELECT api_id FROM API WHERE name = ?", (api_name, ))
+    cursor.execute("SELECT api_id FROM API WHERE api_url = ?", (api_url, ))
     result = cursor.fetchone()
 
     if result:
@@ -124,12 +124,12 @@ def get_api_entry(conn, api_name):
     else:
         return None
 
-def insert_api_entry(conn, api_name):
+def insert_api_entry(conn, api_url):
 
-    author = "Google" if api_name.startswith(("chrome.", "browser.")) else "Third Party"    
+    author = "Google" if api_url.startswith(("chrome.", "browser.")) else "Third Party"    
     
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO API (name, author) VALUES (?, ?)", (api_name, author, ))
+    cursor.execute("INSERT INTO API (api_url, author) VALUES (?, ?)", (api_url, author, ))
     conn.commit()
 
 def get_url_entry(conn, url):

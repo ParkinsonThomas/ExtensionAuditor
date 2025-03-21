@@ -5,7 +5,7 @@
 
     "scraper_info": {
         "category_url": "https://chromewebstore.google.com/category/extensions",
-        "max_guids": 30
+        "max_guids": 200
     },
 
     "storage": {
@@ -20,19 +20,19 @@
     "modules": [
         {
             "name": "GUID_ListCreator",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "Extension_Scraper",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "API_Auditor",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "API_Scraper",
-            "enabled": true
+            "enabled": false
         }
     ]
 }
