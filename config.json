@@ -20,7 +20,7 @@
     "modules": [
         {
             "name": "GUID_ListCreator",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "Extension_Scraper",
@@ -33,6 +33,10 @@
         {
             "name": "API_Scraper",
             "enabled": false
+        },
+        {
+            "name": "JS_Security_Analysis",
+            "enabled": true
         }
     ]
 }

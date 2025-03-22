@@ -15,7 +15,6 @@ def get_extensions_to_analyse(conn):
     return cursor.fetchall()
 
 def find_api_usage(file_path, conn):
-
     api_usage = []
 
     api_patterns = [
@@ -125,7 +124,6 @@ def get_api_entry(conn, api_url):
         return None
 
 def insert_api_entry(conn, api_url):
-
     author = "Google" if api_url.startswith(("chrome.", "browser.")) else "Third Party"    
     
     cursor = conn.cursor()
@@ -149,7 +147,6 @@ def insert_url_entry(conn, url):
     
 def insert_extension_api(conn, extension_id, api_id, path, line):
     cursor = conn.cursor()
-    
     cursor.execute("""
         SELECT 1 FROM ExtensionAPIs WHERE extension_id = ? AND api_id = ?
     """, (extension_id, api_id))

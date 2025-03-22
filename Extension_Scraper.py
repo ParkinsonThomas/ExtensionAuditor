@@ -111,7 +111,6 @@ def extension_exists(conn, extension_guid):
     return cursor.fetchone() is not None
 
 def run_scraper(conn, extension_guid):
-
     if extension_exists(conn, extension_guid):
         print(f"Skipping {extension_guid}, already exists in database.")
         return
@@ -131,7 +130,6 @@ def run_scraper(conn, extension_guid):
     return
 
 def main(config):
-
     db_file = config["database"]["db"]
     debug = config["misc"]["debug"]
 
