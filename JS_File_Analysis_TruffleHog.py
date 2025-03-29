@@ -21,38 +21,35 @@ def collect_js_files(extension_path):
                 js_files.append(os.path.join(root, file))
     return js_files
 
-def analyse_files(js_files):
+def analyse_files(extension_dir):
     #start_time = time.time()
     trufflehog_path = "/home/thomas/go/bin/trufflehog" 
 
     try:
-        all_findings = [] 
-        for js_file in js_files:
-            print(f"Running TruffleHog for file: {js_file}")
+        print(f"Running TruffleHog in directory: {extension_dir}")
 
-            result = subprocess.run(
-                [trufflehog_path, "filesystem", js_file, "--json"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            findings = []
+        result = subprocess.run(
+        [
+            trufflehog_path,
+            "filesystem",
+            extension_dir,
+            "--include", r"\.js$",
+            "--json"
+        ],
+        capture_output=True,
+        text=True,
+        check=True
+        )
+        findings = []
 
-            for line in result.stdout.splitlines():
-                findings.append(json.loads(line))
-            
-            all_findings.append(findings)
-
+        for line in result.stdout.splitlines():
+            findings.append(json.loads(line))
+        
         #end_time = time.time()
         #elapsed_time = end_time - start_time
         #print(f"Execution time: {elapsed_time:.6f} seconds")
-        #print("")
 
-        #for i in range(0, len(js_files)):
-        #    print(f"File: {js_files[i]}\nFindings: {all_findings[i]}")    
-        #print("")
-
-        return all_findings
+        return findings
 
     except subprocess.CalledProcessError as e:
         print("Error running TruffleHog:", e.stderr)
@@ -62,8 +59,7 @@ def analyse_extensions(extract_path, guids):
     findings = []
     for guid in guids:
         file_path = os.path.join(extract_path, guid[0])
-        js_files = collect_js_files(file_path)
-        x = analyse_files(js_files)
+        x = analyse_files(file_path)
 
         findings.append((guid, x))
 
