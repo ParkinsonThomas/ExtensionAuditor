@@ -52,12 +52,8 @@ def main(config):
     conn = init_db_connection(db_file)
     extensions = get_extensions_to_analyse(conn)
 
-    print("1")
     guid = "befflofjcniongenjmbkgkoljhgliihe"
     file_path = os.path.join(extract_path, guid)
-    print("2")
     js_files = collect_js_files(file_path)
-    print("3")
     print(js_files)
-    print("4")
     scan_js_files(js_files, llm)

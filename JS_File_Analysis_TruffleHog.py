@@ -22,46 +22,67 @@ def collect_js_files(extension_path):
     return js_files
 
 def analyse_files(extension_dir):
-    #start_time = time.time()
-    trufflehog_path = "/home/thomas/go/bin/trufflehog" 
+    gitleaks_path = "gitleaks" 
 
     try:
-        print(f"Running TruffleHog in directory: {extension_dir}")
+        print(f"Running Gitleaks in directory: {extension_dir}")
+        findings = []
 
         result = subprocess.run(
         [
-            trufflehog_path,
-            "filesystem",
-            extension_dir,
-            "--include", r"\.js$",
-            "--json"
+            gitleaks_path,
+            "detect",
+            "--source", extension_dir,
+            "--verbose",
+            "--no-git",
+            "--report-format", "json"
         ],
         capture_output=True,
         text=True,
-        check=True
         )
-        findings = []
+            
+        print("----------------------------------------")
+        print(f"Gitleaks raw output:\n{result.stdout}")
 
-        for line in result.stdout.splitlines():
-            findings.append(json.loads(line))
-        
-        #end_time = time.time()
-        #elapsed_time = end_time - start_time
-        #print(f"Execution time: {elapsed_time:.6f} seconds")
+        if result.stdout:
+            lines = result.stdout.splitlines()
+            secret_info = {}
+            
+            for line in lines:
+                if "Secret:" in line:
+                    # Extract secret and clean it by removing ANSI escape codes
+                    secret = line.split('Secret:')[1].strip()
+                    secret = re.sub(r'\x1b\[[0-9;]*m', '', secret)  # Remove ANSI escape codes
+                    secret_info['secret'] = secret
+                    
+                if 'File:' in line:
+                    # Extract file
+                    secret_info['file'] = line.split('File:')[1].strip()
+                    
+                if secret_info:  # If secret info has been populated, add it to findings
+                    findings.append(secret_info)
+                    secret_info = {}  # Reset for the next potential finding
 
         return findings
 
     except subprocess.CalledProcessError as e:
-        print("Error running TruffleHog:", e.stderr)
+        print(f"Error running Gitleaks: {e}")
+        print(f"Exit Status: {e.returncode}")
+        print(f"Error Output:\n{e.stderr}")
         return []
 
 def analyse_extensions(extract_path, guids):
+    start_time = time.time()
     findings = []
     for guid in guids:
         file_path = os.path.join(extract_path, guid[0])
         x = analyse_files(file_path)
 
-        findings.append((guid, x))
+        findings.append((guid[0], x))
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Execution time: {elapsed_time:.6f} seconds")
 
     print("==============")
     print("Final results:")
@@ -75,5 +96,11 @@ def main(config):
     
     conn = init_db_connection(db_file)
     guids = get_extensions_to_analyse(conn)
+
+    guids = guids[:20]
     
-    analyse_extensions(extract_path, guids)
+    #analyse_extensions(extract_path, guids)
+
+    file_path = os.path.join(extract_path, "ofpnmcalabcbjgholdjcjblkibolbppb")
+    x = analyse_files(file_path)
+    print(x)
