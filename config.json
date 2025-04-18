@@ -2,7 +2,7 @@
     "database": {
         "db": "ExtensionDB.db"
     },
-    
+
     "scraper_info": {
         "category_url": "https://chromewebstore.google.com/category/extensions",
         "max_guids": 200
@@ -16,7 +16,8 @@
     "misc": {
         "debug": true,
         "model_path": "/mnt/c/Users/tpark/llama.cpp/models/codellama-13b.Q4_K_S.gguf",
-        "model_store (IGNORE)": "/home/thomas/UoA_Diss/llama.cpp/build/codellama-7b.Q4_K_M.gguf"
+        "model_store (IGNORE)": "/home/thomas/UoA_Diss/llama.cpp/build/codellama-7b.Q4_K_M.gguf",
+        "entropy_filter": 3.5
     },
 
     "modules": [
@@ -26,7 +27,7 @@
         },
         {
             "name": "Extension_Scraper",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "API_Auditor",
@@ -37,15 +38,7 @@
             "enabled": false
         },
         {
-            "name": "JS_File_Analysis_DeepSeek",
-            "enabled": false
-        },
-        {
-            "name": "JS_File_Analysis_Llama",
-            "enabled": false
-        },
-        {
-            "name": "JS_File_Analysis_TruffleHog",
+            "name": "JS_File_Analysis_Gitleaks",
             "enabled": true
         }
     ]

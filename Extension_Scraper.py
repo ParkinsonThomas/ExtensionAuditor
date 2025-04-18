@@ -133,7 +133,7 @@ def main(config):
     db_file = config["database"]["db"]
     debug = config["misc"]["debug"]
 
-    guids_file = "GUID_List_25.txt"
+    guids_file = "GUID_List10.txt"
     with open(guids_file, "r") as file:
         guids = [line.strip() for line in file.readlines()]
 
