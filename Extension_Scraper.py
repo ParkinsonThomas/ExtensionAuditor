@@ -12,20 +12,20 @@ extension_webstore_url = "https://chromewebstore.google.com/detail/"
 def init_db_connection(db_file):
     return sqlite3.connect(db_file)
 
-def download_extension(extension_guid, save_path="Extensions_Downloaded"):
+def download_extension(extension_guid, download_dir):
     url = f"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=91.0.4472.77&acceptformat=crx2,crx3&x=id%3D{extension_guid}%26uc"
     response = requests.get(url, stream=True)
     if response.status_code == 200:
-        os.makedirs(save_path, exist_ok=True)
-        file_path = os.path.join(save_path, f"{extension_guid}.crx")
+        os.makedirs(download_dir, exist_ok=True)
+        file_path = os.path.join(download_dir, f"{extension_guid}.crx")
         with open(file_path, "wb") as f:
             f.write(response.content)
         return file_path
     return None
 
-def extract_extension(file_path, extract_to="Extensions_Extracted"):
-    os.makedirs(extract_to, exist_ok=True)
-    extract_path = os.path.join(extract_to, os.path.basename(file_path).replace(".crx", ""))
+def extract_extension(file_path, extract_dir):
+    os.makedirs(extract_dir, exist_ok=True)
+    extract_path = os.path.join(extract_dir, os.path.basename(file_path).replace(".crx", ""))
     with zipfile.ZipFile(file_path, 'r') as zip_reference:
         zip_reference.extractall(extract_path)
     return extract_path
@@ -94,10 +94,6 @@ def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
         absolute_path
     )
 
-    #print("DEBUG:")
-    #for i in extension_values:
-    #    print(extension_values[i])
-
     cursor.execute("""
         INSERT INTO Extension (extension_guid, name, version, manifest_json, author, homepage_url, is_active, last_updated, downloaded_date, absolute_path)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -110,17 +106,17 @@ def extension_exists(conn, extension_guid):
     cursor.execute("SELECT 1 FROM Extension WHERE extension_guid = ?", (extension_guid, ))
     return cursor.fetchone() is not None
 
-def run_scraper(conn, extension_guid):
+def run_scraper(conn, extension_guid, download_dir, extract_dir):
     if extension_exists(conn, extension_guid):
         print(f"Skipping {extension_guid}, already exists in database.")
         return
 
-    file_path = download_extension(extension_guid)
+    file_path = download_extension(extension_guid, download_dir)
     if not file_path:
         print("Failed to download extension.")
         return
 
-    extract_path = extract_extension(file_path)
+    extract_path = extract_extension(file_path, extract_dir)
     manifest_data = parse_manifest(os.path.join(extract_path, "manifest.json"))
     scraped_data = scrape_extension_data(extension_guid)
     manifest_data.update(scraped_data)
@@ -131,7 +127,9 @@ def run_scraper(conn, extension_guid):
 
 def main(config):
     db_file = config["database"]["db"]
-    debug = config["misc"]["debug"]
+
+    download_dir = config["storage"]["download_path"]
+    extract_dir = config["storage"]["extract_path"]
 
     guids_file = "GUID_List10.txt"
     with open(guids_file, "r") as file:
@@ -139,5 +137,5 @@ def main(config):
 
     conn = init_db_connection(db_file)
     for guid in guids:
-        run_scraper(conn, guid)
+        run_scraper(conn, guid, download_dir, extract_dir)
     conn.close()
