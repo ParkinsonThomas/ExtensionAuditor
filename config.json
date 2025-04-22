@@ -23,11 +23,11 @@
     "modules": [
         {
             "name": "GUID_ListCreator",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "Extension_Scraper",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "API_Auditor",
@@ -38,8 +38,8 @@
             "enabled": false
         },
         {
-            "name": "JS_File_Analysis_Gitleaks",
-            "enabled": true
+            "name": "Extension_Analysis_Gitleaks",
+            "enabled": false
         }
     ]
 }
