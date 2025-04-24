@@ -21,7 +21,7 @@ def collect_js_files(extension_path):
                 js_files.append(os.path.join(root, file))
     return js_files
 
-def analyse_files(conn, extract_path, guid, extension_id):
+def analyse_files(conn, extract_path, guid, extension_id, entropy_filter):
     gitleaks_path = "gitleaks" 
 
     try:
@@ -61,7 +61,8 @@ def analyse_files(conn, extract_path, guid, extension_id):
 
                     
                 if all(v is not None for v in [secret, rule_id, entropy, file_name, line_num]):
-                    insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_num)
+                    if entropy > entropy_filter:
+                        insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_num)
                     secret, rule_id, entropy, file_name, line_num = None, None, None, None, None
 
         return findings
@@ -75,17 +76,17 @@ def analyse_files(conn, extract_path, guid, extension_id):
 def insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_num):
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO Extension_KeyPwd_Faults (extension_id, file_name, line, rule_id, secret, entropy)
+        INSERT INTO ExtensionSecrets (extension_id, file_name, line, rule_id, secret, entropy)
         VALUES (?, ?, ?, ?, ?, ?)""",
         (extension_id, file_name, line_num, rule_id, secret, entropy)
     )
     conn.commit()
 
-def analyse_extensions(conn, extract_path, extensions):
+def analyse_extensions(conn, extract_path, extensions, entropy_filter):
     start_time = time.time()
     findings = []
     for extension in extensions:
-        analyse_files(conn, extract_path, extension[1], extension[0])
+        analyse_files(conn, extract_path, extension[1], extension[0], entropy_filter)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
@@ -95,13 +96,15 @@ def main(config):
     db_file = config["database"]["db"]
     extract_path = config["storage"]["extract_path"]
     
+    entropy_enabled = config["entropy_filtering"]["enabled"]
+    if entropy_enabled == True:
+        entropy_filter = config["entropy_filtering"]["entropy_filter"]
+    else:
+        entropy_filter = 0
+
     conn = init_db_connection(db_file)
     extensions = get_extensions_to_analyse(conn)
 
     extensions = extensions[:20]
 
-    analyse_extensions(conn, extract_path, extensions)
-
-    #file_path = os.path.join(extract_path, "ofpnmcalabcbjgholdjcjblkibolbppb")
-    #x = analyse_files(file_path)
-    #print(x)
+    analyse_extensions(conn, extract_path, extensions, entropy_filter)

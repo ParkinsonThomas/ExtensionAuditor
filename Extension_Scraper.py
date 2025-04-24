@@ -131,7 +131,7 @@ def main(config):
     download_dir = config["storage"]["download_path"]
     extract_dir = config["storage"]["extract_path"]
 
-    guids_file = "GUID_List10.txt"
+    guids_file = "GUID_List100.txt"
     with open(guids_file, "r") as file:
         guids = [line.strip() for line in file.readlines()]
 
