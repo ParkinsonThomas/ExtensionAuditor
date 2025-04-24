@@ -17,53 +17,52 @@ import selenium.common.exceptions as selenium_exceptions
 import time
 
 def get_extension_guids(url, result_cap):
-    #response = requests.get(url)
     
-    #if response.status_code != 200:
-    #    print("Failed to fetch page:", response.status_code)
-    #    return []
+    try:
+        options = Options()
+        options.add_argument("--headless")  # Run Chrome in headless mode (remove this if you want to see the browser)
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920x1080")
+        options.add_argument("--no-sandbox")
+        
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(url)
+        time.sleep(3)  # Allow page to load
 
-    options = Options()
-    options.add_argument("--headless")  # Run Chrome in headless mode (remove this if you want to see the browser)
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920x1080")
-    options.add_argument("--no-sandbox")
-    
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.get(url)
-    time.sleep(3)  # Allow page to load
+        wait = WebDriverWait(driver, 3)
 
-    wait = WebDriverWait(driver, 3)
+        start_time = time.time()
+        max_time = 90
 
-    start_time = time.time()
-    max_time = 90
+        # Scroll & click "Load More" repeatedly
+        while time.time() - start_time < max_time:
+            try:
+                # Find the "See More" button
+                load_more_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.mUIrbf-vQzf8d:nth-child(5)")))
+                
+                # Click the button to load more extensions
+                driver.execute_script("arguments[0].click();", load_more_button)
+                time.sleep(2)  # Wait for more extensions to load
+            except selenium_exceptions.TimeoutException:
+                break
 
-    # Scroll & click "Load More" repeatedly
-    while time.time() - start_time < max_time:
-        try:
-            # Find the "See More" button
-            load_more_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "span.mUIrbf-vQzf8d:nth-child(5)")))
-            
-            # Click the button to load more extensions
-            driver.execute_script("arguments[0].click();", load_more_button)
-            time.sleep(2)  # Wait for more extensions to load
-        except selenium_exceptions.TimeoutException:
-            break
+        # Get final loaded HTML
+        page_source = driver.page_source
+        driver.quit()
 
-    # Get final loaded HTML
-    page_source = driver.page_source
-    driver.quit()
+        soup = BeautifulSoup(page_source, "html.parser")
 
-    soup = BeautifulSoup(page_source, "html.parser")
+        extension_divs = soup.find_all("div", attrs={"data-item-id": True})
+        
+        guids = [div["data-item-id"] for div in extension_divs]
 
-    extension_divs = soup.find_all("div", attrs={"data-item-id": True})
-    
-    guids = [div["data-item-id"] for div in extension_divs]
-
-    if not guids:
-        print("No extensions found.")
-    
-    return guids
+        if not guids:
+            print("No extensions found.")
+        
+        return guids
+    except Exception as e:
+        print(f"Error fetching extension GUIDs: {e}")
+        return []
 
 def save_to_file(guids, url):
     filename = "GUID_List.txt"
