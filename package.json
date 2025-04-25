@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@babel/parser": "^7.27.0",
     "esprima": "^4.0.1"
   }
 }

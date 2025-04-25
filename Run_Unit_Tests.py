@@ -12,7 +12,7 @@ unit_tests = [
     ("Extension_Scraper", "test_Extension_Scraper"),
     ("API_Auditor", "test_API_Auditor"),
     ("Extension_Analysis_Gitleaks", "test_Extension_Analysis_Gitleaks"),
-    ("Extension_Analysis_Esprima", "test_Extension_Analysis_Esprima"),
+    ("Extension_Analysis_Babel", "test_Extension_Analysis_Babel"),
 ]
 
 def run_test_module(label, module_name):

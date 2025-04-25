@@ -46,7 +46,7 @@
             "enabled": false
         },
         {
-            "name": "Extension_Analysis_Esprima",
+            "name": "Extension_Analysis_Babel",
             "enabled": true
         }
     ]
