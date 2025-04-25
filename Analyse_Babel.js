@@ -4,6 +4,17 @@ const babelParser = require('@babel/parser');
 function analyse(jsFilePath) {
     const dangerousPatterns = {};
 
+    const ruleMap = {
+        "eval_usage": "eval() usage",
+        "new_function_usage": "new Function() usage",
+        "dynamic_timer_string": "Dynamic setTimeout/setInterval with string",
+        "document_write": "document.write or writeln usage",
+        "innerhtml_assignment": "Assignment to innerHTML",
+        "chrome_execute_script": "chrome.scripting.executeScript usage",
+        "chrome_onmessage_listener": "chrome.runtime.onMessage listener added",
+        "storage_access": "localStorage/sessionStorage access"
+    };
+
     try {
         const code = fs.readFileSync(jsFilePath, 'utf8');
         const ast = babelParser.parse(code, {
@@ -20,52 +31,46 @@ function analyse(jsFilePath) {
             ]
         });
 
-        function increment(pattern) {
-            dangerousPatterns[pattern] = (dangerousPatterns[pattern] || 0) + 1;
+        function increment(ruleId) {
+            dangerousPatterns[ruleId] = (dangerousPatterns[ruleId] || 0) + 1;
         }
 
         function analyseNode(node) {
             if (!node) return;
 
-            // 1. eval()
             if (node.type === 'CallExpression' && node.callee?.name === 'eval') {
-                increment('eval() usage');
+                increment('eval_usage');
             }
 
-            // 2. new Function()
             if (node.type === 'NewExpression' && node.callee?.name === 'Function') {
-                increment('new Function() usage');
+                increment('new_function_usage');
             }
 
-            // 3. setTimeout / setInterval with string
             if (
                 node.type === 'CallExpression' &&
                 (node.callee?.name === 'setTimeout' || node.callee?.name === 'setInterval') &&
                 node.arguments?.[0]?.type === 'StringLiteral'
             ) {
-                increment('Dynamic setTimeout/setInterval with string');
+                increment('dynamic_timer_string');
             }
 
-            // 4. document.write / writeln
             if (
                 node.type === 'CallExpression' &&
                 node.callee?.type === 'MemberExpression' &&
                 node.callee.object?.name === 'document' &&
                 ['write', 'writeln'].includes(node.callee.property?.name)
             ) {
-                increment('document.write or writeln usage');
+                increment('document_write');
             }
 
-            // 5. innerHTML assignment
             if (
                 node.type === 'AssignmentExpression' &&
                 node.left?.type === 'MemberExpression' &&
                 node.left.property?.name === 'innerHTML'
             ) {
-                increment('Assignment to innerHTML');
+                increment('innerhtml_assignment');
             }
 
-            // 6. chrome.scripting.executeScript
             if (
                 node.type === 'CallExpression' &&
                 node.callee?.type === 'MemberExpression' &&
@@ -74,10 +79,9 @@ function analyse(jsFilePath) {
                 node.callee.object.property?.name === 'scripting' &&
                 node.callee.property?.name === 'executeScript'
             ) {
-                increment('chrome.scripting.executeScript usage');
+                increment('chrome_execute_script');
             }
 
-            // 7. chrome.runtime.onMessage listener
             if (
                 node.type === 'CallExpression' &&
                 node.callee?.type === 'MemberExpression' &&
@@ -86,15 +90,14 @@ function analyse(jsFilePath) {
                 node.callee.object.property?.name === 'runtime' &&
                 node.callee.property?.name === 'onMessage'
             ) {
-                increment('chrome.runtime.onMessage listener added');
+                increment('chrome_onmessage_listener');
             }
 
-            // 8. localStorage / sessionStorage access
             if (
                 node.type === 'MemberExpression' &&
                 ['localStorage', 'sessionStorage'].includes(node.object?.name)
             ) {
-                increment('localStorage/sessionStorage access');
+                increment('storage_access');
             }
         }
 
