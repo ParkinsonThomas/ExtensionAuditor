@@ -239,7 +239,7 @@ def main(config):
     extract_dir = config["storage"]["extract_path"]
 
     # Processes GUIDs from txt file into a list (guids)
-    guids_file = "GUID_List100.txt"
+    guids_file = "GUID_List1000.txt"
     with open(guids_file, "r") as file:
         guids = [line.strip() for line in file.readlines()]
 

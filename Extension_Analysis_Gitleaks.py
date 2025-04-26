@@ -167,3 +167,4 @@ def main(config):
     extensions = get_extensions_to_analyse(conn)
 
     analyse_extensions(conn, extract_path, extensions, entropy_filter)
+    conn.close()
