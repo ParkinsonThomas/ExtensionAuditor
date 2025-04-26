@@ -6,22 +6,35 @@ from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com")
 
+# Initialises and returns database connection
 def init_db_connection(db_file):
     return sqlite3.connect(db_file)
 
+# Retrieves all extensions from the database and returns a list of tuples (extension_id, extension_guid)
 def get_extensions_to_analyse(conn):
     cursor = conn.cursor()
     cursor.execute("SELECT extension_id, extension_guid FROM Extension")
     return cursor.fetchall()
 
 def find_api_usage(file_path, conn):
-    api_usage = []
+    """
+    Scans a JavaScript file to detect possible API calls.
 
+    Parameters:
+    file_path (str): Path to the JavaScript file.
+    conn (sqlite3.Connection): Database connection.
+
+    Returns:
+    list[tuple]: List of (API usage string, file path, line number) matches.
+    """
+    
+    # Regex patterns
     api_patterns = [
-        re.compile(r'\b(?:chrome|browser)\.[a-zA-Z0-9_\.]+'),  # Chrome APIs
-        re.compile(r'\b(fetch|XMLHttpRequest)\b'),
-        re.compile(r'https?://[a-zA-Z0-9./_-]+')
+        re.compile(r'\b(?:chrome|browser)\.[a-zA-Z0-9_\.]+'),   # Chrome or Browser APIs
+        re.compile(r'\b(fetch|XMLHttpRequest)\b'),              # fetch() and XMLHttpRequests
+        re.compile(r'https?://[a-zA-Z0-9./_-]+')                # All URLs                
     ]
+    api_usage = []
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -36,8 +49,19 @@ def find_api_usage(file_path, conn):
     return api_usage
 
 def audit_api_links(api_usage, conn):
-    api_list = []
+    """
+    Filters a list of potential API usages, verifying which are true API endpoints.
+    Uses DeepSeek's API (LLM) to validate URLs and filters out false positives.
 
+    Parameters:
+    api_usage (list[tuple]): List of (API usage string, file path, line number).
+    conn (sqlite3.Connection): Database connection.
+
+    Returns:
+    list[str]: List of valid API URLs.
+    """
+
+    api_list = []
     api_to_audit = set()
     for api_tuple in api_usage:
         api_url = api_tuple[0]
@@ -60,6 +84,7 @@ def audit_api_links(api_usage, conn):
         """
         
         try:
+            # DeepSeek query
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[{"role": "user", "content": prompt}],
@@ -71,18 +96,18 @@ def audit_api_links(api_usage, conn):
             answer = re.search(r"\[.*\]", raw_answer, re.DOTALL)
 
             try:
-                valid_apis = json.loads(answer.group(0))  # Convert response to list
+                valid_apis = json.loads(answer.group(0))    # Convert response to list
             except json.JSONDecodeError:
                 print("Error: DeepSeek response is not valid JSON.")
                 valid_apis = []
 
-            # Store results in DB
+            # Store results in database
             for link in api_to_audit:
                 if link in valid_apis:
-                    insert_api_entry(conn, link)
+                    insert_api_entry(conn, link)    # Stores API URL in database
                     api_list.append(link)
                 else:
-                    insert_url_entry(conn, link)  # Mark as non-API
+                    insert_url_entry(conn, link)    # Stores URL to use for pre-filtering in the future
 
         except Exception as e:
             print(f"Error querying DeepSeek API: {e}")
@@ -90,12 +115,23 @@ def audit_api_links(api_usage, conn):
     return api_list
 
 def analyse_extension(extension_id, extension_path, conn):
+    """
+    Conducts analysis for APIs on an extracted extension directory.
+
+    Parameters:
+    extension_id (int): Extension ID.
+    extension_path (str): Path to the extracted extension folder.
+    conn (sqlite3.Connection): Database connection.
+    """
+
+    # Uses set to only track one instance of the API URL
     inserted_apis = set()
     all_api_usage = []
 
+    # Iterates through the directory
     for root, _, files in os.walk(extension_path):
         for file in files:
-            if file.endswith(".js"):
+            if file.endswith(".js"):    # Only analyses JavaScript files
                 file_path = os.path.join(root, file)
                 api_usage = find_api_usage(file_path, conn)
                 all_api_usage.extend(api_usage)
@@ -111,9 +147,20 @@ def analyse_extension(extension_id, extension_path, conn):
                 api_id = get_api_entry(conn, api)
             
             insert_extension_api(conn, extension_id, api_id, path, line)
-            inserted_apis.add(api)
+            inserted_apis.add(api)  # Adds API URL to set to ensure it isn't processed again
 
 def get_api_entry(conn, api_url):
+    """
+    Looks up an API URL in the database.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    api_url (str): API URL to lookup.
+
+    Returns:
+    int or None: API ID if found, returns None if not.
+    """
+
     cursor = conn.cursor()
     cursor.execute("SELECT api_id FROM API WHERE api_url = ?", (api_url, ))
     result = cursor.fetchone()
@@ -124,13 +171,31 @@ def get_api_entry(conn, api_url):
         return None
 
 def insert_api_entry(conn, api_url):
+    """
+    Inserts a new API URL into the database.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    api_url (str): API URL to insert.
+    """
+
     author = "Google" if api_url.startswith(("chrome.", "browser.")) else "Third Party"    
-    
     cursor = conn.cursor()
     cursor.execute("INSERT INTO API (api_url, author) VALUES (?, ?)", (api_url, author, ))
     conn.commit()
 
 def get_url_entry(conn, url):
+    """
+    Checks if a URL exists in the URLs database table.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    url (str): URL to check.
+
+    Returns:
+    bool: True if exists, False if not.
+    """
+
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM URLs WHERE name = ?", (url, ))
     result = cursor.fetchone()
@@ -140,12 +205,25 @@ def get_url_entry(conn, url):
     else:
         return False
     
+# Inserts URL into the URLs table
 def insert_url_entry(conn, url):
     cursor = conn.cursor()
     cursor.execute("INSERT INTO URLs (name) VALUES (?)", (url, ))
     conn.commit()
     
 def insert_extension_api(conn, extension_id, api_id, path, line):
+    """
+    Creates an entry into the "ExtensionAPIs" linking table, recording which APIs are present in Extensions.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    extension_id (int): Extension ID.
+    api_id (int): API ID.
+    path (str): File path of where the API is used.
+    line (int): Line number where the API was used.
+    """
+
+    # Check to make sure entry doesn't exist
     cursor = conn.cursor()
     cursor.execute("""
         SELECT 1 FROM ExtensionAPIs WHERE extension_id = ? AND api_id = ?
@@ -159,12 +237,22 @@ def insert_extension_api(conn, extension_id, api_id, path, line):
         conn.commit()
 
 def main(config):
+    """
+    Main entry point for the API auditing pipeline.
+
+    Parameters:
+    config: Configuration settings (used for database and directories).
+    """
+
+    # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
     extract_path = config["storage"]["extract_path"]
 
+    # Initialise database connection and retrieve extensions to analyse
     conn = init_db_connection(db_file)
     extensions = get_extensions_to_analyse(conn)
 
+    # Iterates through each extension and calls "analyse_extension"
     for extension_id, extension_guid in extensions:
         file_path = os.path.join(extract_path, extension_guid)
         if os.path.exists(file_path):
