@@ -7,7 +7,7 @@ def load_config():
         return json.load(config_file)
     
 def run_module(module_name, config):
-    #try:
+    try:
         module = importlib.import_module(module_name)
 
         if hasattr(module, "main"):
@@ -18,12 +18,12 @@ def run_module(module_name, config):
             print("")
             print(f"ERROR! Skipping module {module_name} - No main() function found.")
     
-    #except ModuleNotFoundError:
-    #    print("")
-    #    print(f"ERROR! Skipping module {module_name} - Module not found.")
-    #except Exception as e:
-    #    print("")
-    #    print(f"ERROR! Skipping {module_name} - {e}")
+    except ModuleNotFoundError:
+        print("")
+        print(f"ERROR! Skipping module {module_name} - Module not found.")
+    except Exception as e:
+        print("")
+        print(f"ERROR! Skipping {module_name} - {e}")
 
 def main():
     start_time = time.time()

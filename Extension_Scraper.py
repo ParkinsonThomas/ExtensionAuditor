@@ -7,15 +7,27 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from GUID_ListCreator import main as GUIDListMain
 
-extension_webstore_url = "https://chromewebstore.google.com/detail/"
-
+# Initialises and returns database connection
 def init_db_connection(db_file):
     return sqlite3.connect(db_file)
 
 def download_extension(extension_guid, download_dir):
+    """
+    Downloads a Chrome Extension .crx file using its GUID.
+
+    Parameters:
+    extension_guid (str): Chrome Extension GUID.
+    download_dir (str): Directory for downloaded extension .crx files.
+
+    Returns:
+    Path to the downloaded file if successful, None otherwise.
+    """
+
     url = f"https://clients2.google.com/service/update2/crx?response=redirect&prodversion=91.0.4472.77&acceptformat=crx2,crx3&x=id%3D{extension_guid}%26uc"
     response = requests.get(url, stream=True)
+    
     if response.status_code == 200:
+        # Makes a directory for each extension in the downloads directory 
         os.makedirs(download_dir, exist_ok=True)
         file_path = os.path.join(download_dir, f"{extension_guid}.crx")
         with open(file_path, "wb") as f:
@@ -24,6 +36,17 @@ def download_extension(extension_guid, download_dir):
     return None
 
 def extract_extension(file_path, extract_dir):
+    """
+    Extracts the contents of an extension .crx file into the extracted directory.
+
+    Parameters:
+    file_path (str): Path to the downloaded .crx file.
+    extract_dir (str): Directory for extracted extensions.
+
+    Returns:
+    str: Path to the extracted extension folder.
+    """
+
     os.makedirs(extract_dir, exist_ok=True)
     extract_path = os.path.join(extract_dir, os.path.basename(file_path).replace(".crx", ""))
     with zipfile.ZipFile(file_path, 'r') as zip_reference:
@@ -31,11 +54,31 @@ def extract_extension(file_path, extract_dir):
     return extract_path
 
 def parse_manifest(manifest_path):
+    """
+    Parses the manifest.json file from the extracted extension.
+
+    Parameters:
+    manifest_path (str): Path to the manifest.json file.
+
+    Returns:
+    dict: Parsed manifest as a dictionary.
+    """
+
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest_data = json.load(f)
     return manifest_data
 
 def extract_author(soup):
+    """
+    Extracts the extension author's name from the Chome Web Store HTML.
+
+    Parameters:
+    soup (BeautifulSoup): Parsed BeautifulSoup object of the Chrome Web Store extension page.
+
+    Returns:
+    str: Author name, "Unknown" if not found.
+    """
+
     author_tag = soup.find("div", {"class": "Fm8Cnb"})
     if author_tag:
         author = author_tag.get_text(separator="\n").split("\n")[0].strip()
@@ -43,6 +86,16 @@ def extract_author(soup):
     return "Unknown"
 
 def extract_last_updated(soup):
+    """
+    Extracts the last updated date of the extension from the Chrome Web Store HTML.
+
+    Parameters:
+    soup (BeautifulSoup): Parsed BeautifulSoup object of the extension page.
+
+    Returns:
+    str: Formatted date as 'YYYY-MM-DD', returns "0000-00-00" if not found or invalid.
+    """
+
     last_updated_li = soup.find("li", {"class": "ZbWJPd uBIrad"})
     if last_updated_li:
         divs = last_updated_li.find_all("div")
@@ -58,6 +111,17 @@ def extract_last_updated(soup):
     return "0000-00-00"
 
 def scrape_extension_data(extension_guid):
+    """
+    Scrapes metadata (name, author, last updated date) from the Chrome Web Store page.
+
+    Parameters:
+    extension_guid (str): Chrome Extension GUID.
+
+    Returns:
+    dict: Dictionary containing metadata about the extension.
+    """
+
+    extension_webstore_url = "https://chromewebstore.google.com/detail/"
     url = f"{extension_webstore_url}{extension_guid}"
     response = requests.get(url)
 
@@ -78,6 +142,16 @@ def scrape_extension_data(extension_guid):
     return {}
 
 def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
+    """
+    Inserts an extension entry into the database.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    extension_guid (str): Chrome Extension GUID.
+    manifest_data (dict): Parsed manifest and metadata.
+    absolute_path (str): Path to the extracted extension folder.
+    """
+
     cursor = conn.cursor()
     downloaded_date = datetime.today().strftime('%Y-%m-%d')
     
@@ -102,20 +176,45 @@ def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
     conn.commit()
 
 def extension_exists(conn, extension_guid):
+    """
+    Checks whether an extension exists in the database.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    extension_guid (str): Chrome Extension GUID.
+
+    Returns:
+    bool: True if extension exists, False otherwise.
+    """
+
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM Extension WHERE extension_guid = ?", (extension_guid, ))
     return cursor.fetchone() is not None
 
 def run_scraper(conn, extension_guid, download_dir, extract_dir):
+    """
+    Runs the complete scraping pipeline for a single extension,
+    download, extract, parse metadata, and store it in the database.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    extension_guid (str): Extension GUID.
+    download_dir (str): Directory for downloaded extension .crx files.
+    extract_dir (str): Directory for extracted extensions.
+    """
+
+    # Check if extension exists, skips extension if it exists
     if extension_exists(conn, extension_guid):
         print(f"Skipping {extension_guid}, already exists in database.")
         return
 
+    # Error handling for download failing
     file_path = download_extension(extension_guid, download_dir)
     if not file_path:
         print("Failed to download extension.")
         return
 
+    # Scrapes metadata by calling functions
     extract_path = extract_extension(file_path, extract_dir)
     manifest_data = parse_manifest(os.path.join(extract_path, "manifest.json"))
     scraped_data = scrape_extension_data(extension_guid)
@@ -126,11 +225,20 @@ def run_scraper(conn, extension_guid, download_dir, extract_dir):
     return
 
 def main(config):
-    db_file = config["database"]["db"]
+    """
+    Main entry point for the extension scraper.
+    Reads GUIDs from file, then runs "run_scraper" which starts the operations.
 
+    Parameters:
+    config: Configuration settings (used for database and directories).
+    """
+
+    # Retrieve necessary information from the configuration file
+    db_file = config["database"]["db"]
     download_dir = config["storage"]["download_path"]
     extract_dir = config["storage"]["extract_path"]
 
+    # Processes GUIDs from txt file into a list (guids)
     guids_file = "GUID_List100.txt"
     with open(guids_file, "r") as file:
         guids = [line.strip() for line in file.readlines()]

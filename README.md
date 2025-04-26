@@ -1,5 +1,7 @@
 # ExtensionAuditor
 
+Docstring format from GeeksForGeeks - https://www.geeksforgeeks.org/python-docstrings/
+
 # Setting up Llama.cpp LLM
 git clone https://github.com/ggerganov/llama.cpp
 cd llama.cpp

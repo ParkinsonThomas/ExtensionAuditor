@@ -3,11 +3,6 @@
         "db": "ExtensionDB.db"
     },
 
-    "scraper_info": {
-        "category_url": "https://chromewebstore.google.com/category/extensions",
-        "max_guids": 200
-    },
-
     "storage": {
         "download_path": "Extensions_Downloaded",
         "extract_path": "Extensions_Extracted"
@@ -27,7 +22,7 @@
     "modules": [
         {
             "name": "GUID_ListCreator",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "Extension_Scraper",
@@ -47,7 +42,7 @@
         },
         {
             "name": "Extension_Analysis_Babel",
-            "enabled": true
+            "enabled": false
         }
     ]
 }
