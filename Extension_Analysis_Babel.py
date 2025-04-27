@@ -14,35 +14,35 @@ def init_analysis_rules(conn):
     rules = [
         {
             "name": "eval_usage",
-            "severity": "high",
+            "severity": "High",
         },
         {
             "name": "new_function_usage",
-            "severity": "high",
+            "severity": "High",
         },
         {
             "name": "dynamic_timer_string",
-            "severity": "medium",
+            "severity": "Medium",
         },
         {
             "name": "document_write",
-            "severity": "high",
+            "severity": "High",
         },
         {
             "name": "innerhtml_assignment",
-            "severity": "medium",
+            "severity": "Medium",
         },
         {
             "name": "chrome_execute_script",
-            "severity": "critical",
+            "severity": "Critical",
         },
         {
             "name": "chrome_onmessage_listener",
-            "severity": "medium",
+            "severity": "Medium",
         },
         {
             "name": "storage_access",
-            "severity": "low",
+            "severity": "Low",
         },
     ]
     cursor = conn.cursor()
