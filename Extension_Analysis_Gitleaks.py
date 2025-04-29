@@ -3,6 +3,7 @@ import os
 import re
 import json
 import time
+import sys
 import subprocess
 
 # Initialises and returns database connection
@@ -49,7 +50,6 @@ def analyse_files(conn, extract_path, guid, extension_id, entropy_filter):
     gitleaks_path = "gitleaks" 
     try:
         extension_dir = os.path.join(extract_path, guid)
-        print(f"Running Gitleaks in directory: {extension_dir}")
 
         # Initialises variables to None, not typical in Python however it is used for logic checks later on
         secret, rule_id, entropy, file_name, line_num = None, None, None, None, None
@@ -92,14 +92,10 @@ def analyse_files(conn, extract_path, guid, extension_id, entropy_filter):
                     
                     # Reset variables to None
                     secret, rule_id, entropy, file_name, line_num = None, None, None, None, None
-
-        return
+        return True
 
     except subprocess.CalledProcessError as e:
-        print(f"Error running Gitleaks: {e}")
-        print(f"Exit Status: {e.returncode}")
-        print(f"Error Output:\n{e.stderr}")
-        return
+        return False
     
 def insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_num):
     """
@@ -123,26 +119,6 @@ def insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_nu
     )
     conn.commit()
 
-def analyse_extensions(conn, extract_path, extensions, entropy_filter):
-    """
-    Orchestrates the Gitleaks analysis process.
-
-    Parameters:
-    conn (sqlite3.Connection): Database connection.
-    extract_path (str): Directory for extracted extensions.
-    extensions (list[tuple]): List of (extension_id, extension_guid) tuples.
-    entropy_filter (float): Minimum entropy, to be used in filtering.
-    """
-
-    # Monitors execution time for evaluation purposes, can comment out if needed
-    start_time = time.time()
-    for extension in extensions:
-        analyse_files(conn, extract_path, extension[1], extension[0], entropy_filter)
-
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Execution time: {elapsed_time:.6f} seconds")
-
 def main(config):
     """
     Main entry point for the Extension Secrets analysis pipeline.
@@ -150,6 +126,8 @@ def main(config):
     Parameters:
     config: Configuration settings (used for database and directories).
     """
+    # Start time
+    start_time = time.time()
 
     # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
@@ -166,5 +144,36 @@ def main(config):
     conn = init_db_connection(db_file)
     extensions = get_extensions_to_analyse(conn)
 
-    analyse_extensions(conn, extract_path, extensions, entropy_filter)
+    # Counts
+    success_count = 0
+    fail_count = 0
+
+    # Prints two lines for formatting later
+    print("Extensions analysed successfully:")
+    print("Extensions analysed unsuccessfully:")
+
+    # Iterates through extensions
+    for extension in extensions:
+        result = analyse_files(conn, extract_path, extension[1], extension[0], entropy_filter)
+        if result:
+            success_count += 1
+        else:
+            fail_count += 1
+        
+        sys.stdout.write("\033[F\033[K" * 2)  # Move up and clear two lines
+        sys.stdout.write(f"Extensions analysed successfully:    {success_count}\n")
+        sys.stdout.write(f"Extensions analysed unsuccessfully:  {fail_count}\n")
+        sys.stdout.flush()
+        time.sleep(0.01)
+
+    # Formats and outputs execution time
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+
+    print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
+
     conn.close()

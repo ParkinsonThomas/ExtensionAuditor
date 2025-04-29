@@ -3,7 +3,7 @@ import os
 import sqlite3
 import time
 import subprocess
-from collections import defaultdict
+import sys
 
 # Initialises and returns database connection
 def init_db_connection(db_file):
@@ -82,7 +82,9 @@ def collect_js_files(extension_path):
     for root, _, files in os.walk(extension_path):
         for file in files:
             if file.endswith(".js"):
-                js_files.append(os.path.join(root, file))
+                full_path = os.path.join(root, file)
+                if os.path.getsize(full_path) > 200:
+                    js_files.append(full_path)
     return js_files
 
 def analyse_js_file(js_file_path):
@@ -105,11 +107,8 @@ def analyse_js_file(js_file_path):
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError:
-            print(result.stdout)
             return None
     else:
-        if result.stderr.strip():
-            print(result.stderr.strip())
         return None
 
 def analyse_extensions(conn, extract_path, extensions):
@@ -123,8 +122,17 @@ def analyse_extensions(conn, extract_path, extensions):
     extensions (list[tuple]): List of (extension_id, extension_guid) tuples.
     """
 
-    start_time = time.time()
     cursor = conn.cursor()
+
+    # Prints three lines for formatting later
+    print("Extensions analysed:")
+    print("Files analysed successfully:")
+    print("Files analysed unsuccessfully:")
+
+    # Count
+    extension_count = 0
+    file_success_count = 0
+    file_fail_count = 0
 
     # Retrieves rule_id from AnalysisRule, to be used as FK when inserting into ExtensionAnalysisJS
     cursor.execute("SELECT rule_id, name FROM AnalysisRule")
@@ -136,9 +144,7 @@ def analyse_extensions(conn, extract_path, extensions):
     # Iterates through each extension
     for extension in extensions:
         extension_dir = os.path.join(extract_path, extension[1])
-        if not os.path.isdir(extension_dir):
-            continue
-        print(f"Analysing extension: {extension_dir}...")
+        extension_count += 1
         
         # Collect JS files, then iterate through each one
         js_files = collect_js_files(extension_dir)
@@ -147,19 +153,26 @@ def analyse_extensions(conn, extract_path, extensions):
             patterns = analyse_js_file(js_file)
 
             if patterns:
+                file_success_count += 1
+
                 # Loops through patterns, processes information and inserts into database
                 for pattern, count in patterns.items():
                     rule_id = pattern_to_rule.get(pattern)  
                     cursor.execute(
                         "INSERT INTO ExtensionAnalysisJS (extension_id, rule_id, file_name, count) VALUES (?, ?, ?, ?)",
                         (extension[0], rule_id, js_file, count)
-                    )                
+                    )
+            else:
+                file_fail_count += 1
+        
+        sys.stdout.write("\033[F\033[K" * 3)  # Move up and clear two lines
+        sys.stdout.write(f"Extensions analysed:             {extension_count}\n")
+        sys.stdout.write(f"Files analysed successfully:     {file_success_count}\n")
+        sys.stdout.write(f"Files analysed unsuccessfully:   {file_fail_count}\n")
+        sys.stdout.flush()
+        time.sleep(0.01)
+                        
         conn.commit()
-
-    # Calculates execution time
-    elapsed_time = time.time() - start_time
-    print(f"Completed in {elapsed_time:.2f} seconds")
-
 
 def main(config):
     """
@@ -168,6 +181,8 @@ def main(config):
     Parameters:
     config: Configuration settings (used for database and directories).
     """
+    # Start time
+    start_time = time.time()
 
     # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
@@ -178,4 +193,15 @@ def main(config):
     init_analysis_rules(conn)
     extensions = get_extensions_to_analyse(conn)
     analyse_extensions(conn, extract_path, extensions)
+
+    # Formats and outputs execution time
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+
+    print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
+
     conn.close()

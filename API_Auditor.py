@@ -1,6 +1,8 @@
 import sqlite3
 import os
 import re
+import sys
+import time
 import json
 from openai import OpenAI
 
@@ -44,7 +46,8 @@ def find_api_usage(file_path, conn):
                     for match in matches:
                         api_usage.append((match, file_path, line_number))
     except Exception as e:
-        print(f"Error reading file {file_path}: {e}")
+        #print(f"Error reading file {file_path}: {e}")
+        return api_usage
 
     return api_usage
 
@@ -98,7 +101,7 @@ def audit_api_links(api_usage, conn):
             try:
                 valid_apis = json.loads(answer.group(0))    # Convert response to list
             except json.JSONDecodeError:
-                print("Error: DeepSeek response is not valid JSON.")
+                #print("Error: DeepSeek response is not valid JSON.")
                 valid_apis = []
 
             # Store results in database
@@ -110,8 +113,9 @@ def audit_api_links(api_usage, conn):
                     insert_url_entry(conn, link)    # Stores URL to use for pre-filtering in the future
 
         except Exception as e:
-            print(f"Error querying DeepSeek API: {e}")
-
+            #print(f"Error querying DeepSeek API: {e}")
+            return api_list
+            
     return api_list
 
 def analyse_extension(extension_id, extension_path, conn):
@@ -243,6 +247,8 @@ def main(config):
     Parameters:
     config: Configuration settings (used for database and directories).
     """
+    # Start time
+    start_time = time.time()
 
     # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
@@ -252,12 +258,37 @@ def main(config):
     conn = init_db_connection(db_file)
     extensions = get_extensions_to_analyse(conn)
 
+    # Counts
+    success_count = 0
+    fail_count = 0
+
+    # Prints three lines for formatting later
+    print("Extensions audited successfully:")
+    print("Extensions audited unsuccessfully:")
+    
     # Iterates through each extension and calls "analyse_extension"
     for extension_id, extension_guid in extensions:
         file_path = os.path.join(extract_path, extension_guid)
         if os.path.exists(file_path):
-            print(f"Analysing {file_path}...")
             analyse_extension(extension_id, file_path, conn)
+            success_count += 1
         else:
-            print(f"ERROR! Directory {file_path} not found.")
+            fail_count += 1
+        
+        sys.stdout.write("\033[F\033[K" * 2)  # Move up and clear three lines
+        sys.stdout.write(f"Extensions audited successfully:     {success_count}\n")
+        sys.stdout.write(f"Extensions audited unsuccessfully:   {fail_count}\n")
+        sys.stdout.flush()
+        time.sleep(0.05)
+
+    # Formats and outputs execution time
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+
+    print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
+
     conn.close()

@@ -10,22 +10,19 @@ def get_extensions(conn):
     cursor.execute("SELECT extension_id, extension_guid FROM Extension")
     return cursor.fetchall()
 
+# Retrieves all apis in database
 def get_apis(conn):
     cursor = conn.cursor()
     cursor.execute("SELECT api_url FROM API")
     return cursor.fetchall()
 
-def get_urls(conn):
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM URLs")
-    return cursor.fetchall()
-
+# Retrieves information on extension secrets from the database
 def get_extension_secrets(conn):
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM ExtensionSecrets")
     numEntries = cursor.fetchall()
 
-    extensions = set()
+    extensions = set()  # Set used to get the number of extensions
     cursor.execute("SELECT extension_id FROM ExtensionSecrets")
     numExtensions = cursor.fetchall()
     
@@ -35,6 +32,15 @@ def get_extension_secrets(conn):
     return(numEntries, extensions)
 
 def get_extension_dangerous_patterns(conn):
+    """
+    Collects information on dangerous patterns found in JavaScript files of Chrome Extensions.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+
+    Returns:
+    tuple: (number of secret entries, set of extension_ids, set of files).
+    """
     count = 0
     cursor = conn.cursor()
     cursor.execute("SELECT count FROM ExtensionAnalysisJS")
@@ -58,6 +64,14 @@ def get_extension_dangerous_patterns(conn):
     return(count, extensions, file_num)
 
 def get_detailed_dangerous_patterns(conn, total_extensions):
+    """
+    Collects information based on the severity of the pattern.
+    Processes information and calls "print_detailed_dangerous_pattern" to display.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    total_extensions (int): Total number of extensions in the database.
+    """
     cursor = conn.cursor()
     cursor.execute("SELECT rule_id, name, severity FROM AnalysisRule")
     analysis_rules = cursor.fetchall()
@@ -83,6 +97,14 @@ def get_detailed_dangerous_patterns(conn, total_extensions):
     print_detailed_dangerous_patterns(conn, crit_rules, total_extensions)
 
 def print_detailed_dangerous_patterns(conn, rules, total_extensions):
+    """
+    Prints stats for each dangerous pattern severity group.
+
+    Parameters
+    conn (sqlite3.Connection): Database connection.
+    rules (list[tuple]): List of analysis rules.
+    total_extensions (int): Total number of extensions.
+    """
 
     print(
     f"""
@@ -125,6 +147,13 @@ def print_detailed_dangerous_patterns(conn, rules, total_extensions):
         )
 
 def database_stats(conn):
+    """
+    Prints overall database stats.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    """
+
     extensions = get_extensions(conn)
     apis = get_apis(conn)
     extensionSecrets = get_extension_secrets(conn)
@@ -153,11 +182,17 @@ def database_stats(conn):
     get_detailed_dangerous_patterns(conn, len(extensions))
 
 def main(config):
+    """
+    Main function to initialise database connection and display stats.
+
+    Parameters:
+    config: Configuration settings (used for database).
+    """
+
     # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
-    download_dir = config["storage"]["download_path"]
-    extract_dir = config["storage"]["extract_path"]
 
+    # Initialise database connection
     conn = init_db_connection(db_file)
     database_stats(conn)
     conn.close()

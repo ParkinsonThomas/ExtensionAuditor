@@ -5,7 +5,8 @@ import os
 import zipfile
 from bs4 import BeautifulSoup
 from datetime import datetime
-from GUID_ListCreator import main as GUIDListMain
+import sys
+import time
 
 # Initialises and returns database connection
 def init_db_connection(db_file):
@@ -205,14 +206,14 @@ def run_scraper(conn, extension_guid, download_dir, extract_dir):
 
     # Check if extension exists, skips extension if it exists
     if extension_exists(conn, extension_guid):
-        print(f"Skipping {extension_guid}, already exists in database.")
-        return
+        #print(f"Skipping {extension_guid}, already exists in database.")
+        return ("skipped")
 
     # Error handling for download failing
     file_path = download_extension(extension_guid, download_dir)
     if not file_path:
-        print("Failed to download extension.")
-        return
+        #print("Failed to download extension.")
+        return ("failed")
 
     # Scrapes metadata by calling functions
     extract_path = extract_extension(file_path, extract_dir)
@@ -221,8 +222,8 @@ def run_scraper(conn, extension_guid, download_dir, extract_dir):
     manifest_data.update(scraped_data)
 
     insert_extension_data(conn, extension_guid, manifest_data, extract_path)
-    print("Extension data inserted successfully.")
-    return
+    #print("Extension data inserted successfully.")
+    return ("success")
 
 def main(config):
     """
@@ -232,18 +233,54 @@ def main(config):
     Parameters:
     config: Configuration settings (used for database and directories).
     """
+    # Start time
+    start_time = time.time()
 
     # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
     download_dir = config["storage"]["download_path"]
     extract_dir = config["storage"]["extract_path"]
 
+    # Counts for output
+    success_count = 0
+    fail_count = 0
+    skipped_count = 0
+
     # Processes GUIDs from txt file into a list (guids)
-    guids_file = "GUID_List1000.txt"
+    guids_file = "GUID_List10.txt"
     with open(guids_file, "r") as file:
         guids = [line.strip() for line in file.readlines()]
 
+    # Prints three lines for formatting later
+    print("Extensions inserted successfully:")
+    print("Extensions inserted unsuccessfully:")
+    print("Extensions skipped (already in database):")
+
     conn = init_db_connection(db_file)
     for guid in guids:
-        run_scraper(conn, guid, download_dir, extract_dir)
+        result = run_scraper(conn, guid, download_dir, extract_dir)
+        if result == "success":
+            success_count += 1
+        if result == "skipped":
+            skipped_count += 1
+        if result == "failed":
+            fail_count += 1
+
+        sys.stdout.write("\033[F\033[K" * 3)  # Move up and clear three lines
+        sys.stdout.write(f"Extensions inserted successfully:            {success_count}\n")
+        sys.stdout.write(f"Extensions inserted unsuccessfully:          {fail_count}\n")
+        sys.stdout.write(f"Extensions skipped (already in database):    {skipped_count}\n")
+        sys.stdout.flush()
+        time.sleep(0.01)
+
+    # Formats and outputs execution time
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+
+    print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
+
     conn.close()

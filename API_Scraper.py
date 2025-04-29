@@ -1,6 +1,8 @@
 import requests
 import sqlite3
 import datetime
+import time
+import sys
 from bs4 import BeautifulSoup
 
 # Initialises and returns database connection
@@ -50,10 +52,10 @@ def scrape_url(conn, api_url):
         doc_url = doc_url if doc_url else ""
 
         update_api_entry(conn, api_url, status_code, content_length, is_active, doc_url)
-        print(f"Scraped: {api_url} - Status: {status_code}")
+        return True
     
     except requests.RequestException as e:
-        print(f"Failed to scrape {api_url}: {e}")
+        return False
 
 
 def extract_documentation_url(api_url):
@@ -92,6 +94,9 @@ def main(config):
     config: Configuration settings (used for database).
     """
 
+    # Start time
+    start_time = time.time()
+
     # Retrieve necessary information from the configuration file
     db_file = config["database"]["db"]
 
@@ -101,7 +106,36 @@ def main(config):
     cursor.execute("SELECT api_url FROM API")
     stored_apis = cursor.fetchall()
 
+    # Counts
+    success_count = 0
+    fail_count = 0
+
+    # Prints two lines for formatting later
+    print("APIs scraped successfully:")
+    print("APIs scraped unsuccessfully:")
+
     for (api_url, ) in stored_apis:
-        scrape_url(conn, api_url)
+        result = scrape_url(conn, api_url)
+        if result:
+            success_count += 1
+        else:
+            fail_count += 1
+
+        sys.stdout.write("\033[F\033[K" * 2)  # Move up and clear three lines
+        sys.stdout.write(f"APIs scraped successfully:    {success_count}\n")
+        sys.stdout.write(f"APIs scraped unsuccessfully:  {fail_count}\n")
+        sys.stdout.flush()
+        time.sleep(0.01)
+
+
+    # Formats and outputs execution time
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    seconds = int(elapsed_time % 60)
+
+    print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
 
     conn.close()
