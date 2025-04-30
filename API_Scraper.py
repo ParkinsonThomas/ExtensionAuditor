@@ -3,6 +3,8 @@ import sqlite3
 import datetime
 import time
 import sys
+import multiprocessing
+import threading
 from bs4 import BeautifulSoup
 
 # Initialises and returns database connection
@@ -29,7 +31,26 @@ def update_api_entry(conn, api_url, status_code, content_length, is_active, doc_
     """, (status_code, content_length, datetime.datetime.now(), is_active, doc_url, api_url))
     conn.commit()
 
-def scrape_url(conn, api_url):
+def insert_data(db_file, queue):
+    """
+    Updates entries in the API table with scraped information.
+
+    Parameters:
+    db_file (str): Path to the database file.
+    queue (multiprocessing.Queue): Queue with findings to process.
+    """
+
+    conn = init_db_connection(db_file)
+    while True:
+        result = queue.get()
+        if result == "FINISHED":
+            conn.close()
+            return
+        if result:
+            api_url, status_code, content_length, is_active, doc_url = result
+            update_api_entry(conn, api_url, status_code, content_length, is_active, doc_url)
+
+def scrape_url(api_url):
     """
     Attempts to access an API URL, checks its status, measures its response size,
     attempts to find related documentation. Calls the "update_api_entry" function
@@ -51,11 +72,10 @@ def scrape_url(conn, api_url):
         doc_url = extract_documentation_url(api_url)
         doc_url = doc_url if doc_url else ""
 
-        update_api_entry(conn, api_url, status_code, content_length, is_active, doc_url)
-        return True
+        return (api_url, status_code, content_length, is_active, doc_url)
     
     except requests.RequestException as e:
-        return False
+        return None
 
 
 def extract_documentation_url(api_url):
@@ -86,6 +106,48 @@ def extract_documentation_url(api_url):
 
     return None
 
+# Multiprocess worker function
+def scrape_api(api_url, queue, counter_queue):
+    result = scrape_url(api_url)
+    if result:
+        queue.put(result)
+        counter_queue.put("success")
+    else:
+        counter_queue.put("fail")
+
+# Updates the terminal with real time updates
+def status_updater(counter_queue, num_apis):
+    """
+    Updates console in real-time to tell the user how many apis (successfully and unsuccesfully) have been scraped.
+
+    Parameters:
+    counter_queue (multiprocessing.Queue): Queue to track number of apis analysed.
+    num_apis (int): Total number of apis.
+    """
+
+    # Counts
+    success_count = 0
+    fail_count = 0
+    processed = 0
+    
+    # Prints two lines to be used in formatting later
+    print("APIs scraped successfully:")
+    print("APIs scraped unsuccessfully:")
+
+    while processed < num_apis:
+        status = counter_queue.get()
+        if status == "success":
+            success_count += 1
+        else:
+            fail_count += 1
+        processed += 1
+
+        sys.stdout.write("\033[F\033[K" * 2) # Move up and clear two lines
+        sys.stdout.write(f"APIs scraped successfully:    {success_count}\n")
+        sys.stdout.write(f"APIs scraped unsuccessfully:  {fail_count}\n")
+        sys.stdout.flush()
+        time.sleep(0.01)
+
 def main(config):
     """
     Main entry point for the API scraping module.
@@ -105,28 +167,28 @@ def main(config):
     cursor = conn.cursor()
     cursor.execute("SELECT api_url FROM API")
     stored_apis = cursor.fetchall()
+    conn.close()
 
-    # Counts
-    success_count = 0
-    fail_count = 0
+    manager = multiprocessing.Manager()
+    queue = manager.Queue()
+    counter_queue = manager.Queue()
 
-    # Prints two lines for formatting later
-    print("APIs scraped successfully:")
-    print("APIs scraped unsuccessfully:")
+    writer_process = multiprocessing.Process(target=insert_data, args=(db_file, queue))
+    writer_process.start()
 
-    for (api_url, ) in stored_apis:
-        result = scrape_url(conn, api_url)
-        if result:
-            success_count += 1
-        else:
-            fail_count += 1
+    status_thread = threading.Thread(target=status_updater, args=(counter_queue, len(stored_apis)))
+    status_thread.start()
 
-        sys.stdout.write("\033[F\033[K" * 2)  # Move up and clear three lines
-        sys.stdout.write(f"APIs scraped successfully:    {success_count}\n")
-        sys.stdout.write(f"APIs scraped unsuccessfully:  {fail_count}\n")
-        sys.stdout.flush()
-        time.sleep(0.01)
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1)
+    for (api_url,) in stored_apis:
+        pool.apply_async(scrape_api, args=(api_url, queue, counter_queue))
 
+    pool.close()
+    pool.join()
+
+    queue.put("FINISHED")
+    writer_process.join()
+    status_thread.join()
 
     # Formats and outputs execution time
     end_time = time.time()
@@ -137,5 +199,3 @@ def main(config):
     seconds = int(elapsed_time % 60)
 
     print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
-
-    conn.close()

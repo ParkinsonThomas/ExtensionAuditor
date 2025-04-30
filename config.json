@@ -12,12 +12,6 @@
         "enabled": false,
         "entropy_filter": 3.5
     },
-    
-    "misc": {
-        "debug": true,
-        "model_path": "/mnt/c/Users/tpark/llama.cpp/models/codellama-13b.Q4_K_S.gguf",
-        "model_store (IGNORE)": "/home/thomas/UoA_Diss/llama.cpp/build/codellama-7b.Q4_K_M.gguf"
-    },
 
     "modules": [
         {
@@ -34,7 +28,7 @@
         },
         {
             "name": "API_Scraper",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "Extension_Analysis_Gitleaks",
@@ -42,7 +36,7 @@
         },
         {
             "name": "Extension_Analysis_Babel",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "Display",
