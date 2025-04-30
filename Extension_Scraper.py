@@ -65,7 +65,7 @@ def parse_manifest(manifest_path):
     dict: Parsed manifest as a dictionary.
     """
 
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, "r", encoding="utf-8-sig") as f:
         manifest_data = json.load(f)
     return manifest_data
 

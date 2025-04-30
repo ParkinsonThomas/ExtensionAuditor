@@ -26,11 +26,11 @@
         },
         {
             "name": "Extension_Scraper",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "API_Auditor",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "API_Scraper",
@@ -38,7 +38,7 @@
         },
         {
             "name": "Extension_Analysis_Gitleaks",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "Extension_Analysis_Babel",
@@ -46,7 +46,7 @@
         },
         {
             "name": "Display",
-            "enabled": true
+            "enabled": false
         }
     ]
 }

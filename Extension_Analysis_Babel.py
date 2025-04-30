@@ -4,6 +4,8 @@ import sqlite3
 import time
 import subprocess
 import sys
+import multiprocessing
+import threading
 
 # Initialises and returns database connection
 def init_db_connection(db_file):
@@ -111,68 +113,107 @@ def analyse_js_file(js_file_path):
     else:
         return None
 
-def analyse_extensions(conn, extract_path, extensions):
+def analyse_extensions(extract_path, extension_id, extension_guid, rule_map, queue, ext_counter_queue, file_counter_queue):
     """
-    Orchestrates the analysis process.
-    Inserts one record per pattern per file with the total count.
+    Performs AST analysis on all JavaScript files in an extension, inserts results into queue.
 
     Parameters:
-    conn (sqlite3.Connection): Database connection.
-    extract_path (str): Directory for extracted extensions.
-    extensions (list[tuple]): List of (extension_id, extension_guid) tuples.
+    extract_path (str): Path to extension.
+    extension_id (int): Extension ID.
+    extension_guid (str): Extension GUID.
+    rule_map (dict): Mapping of pattern name to rule ID.
+    queue (multiprocessing.Queue): Queue to send results to insert_data.
+    ext_counter_queue (multiprocessing.Queue): Queue to track number of extensions analysed.
+    file_counter_queue (multiprocessing.Queue): Queue to track success and failure for files.
     """
 
-    cursor = conn.cursor()
+    extension_dir = os.path.join(extract_path, extension_guid)
+    js_files = collect_js_files(extension_dir)
+    findings = []
+    success = False
 
-    # Prints three lines for formatting later
+    for js_file in js_files:
+        # Retrieves analysed AST
+        patterns = analyse_js_file(js_file)
+
+        if patterns:
+            success = True
+            file_counter_queue.put("success")
+            # Loops through patterns, processes information and inserts into database
+            for pattern, count in patterns.items():
+                rule_id = rule_map.get(pattern)
+                if rule_id:
+                    findings.append((extension_id, rule_id, js_file, count))
+        else:
+            file_counter_queue.put("fail")
+
+    queue.put(findings)
+    ext_counter_queue.put("success" if success else "fail")
+    
+                        
+def insert_data(db_file, queue):
+    """
+    Creates an entry for a detected secret in the "ExtensionSecrets" table.
+
+    Parameters:
+    db_file (str): Path to the database file.
+    queue (multiprocessing.Queue): Queue with findings to process.
+    """
+
+    conn = init_db_connection(db_file)
+    cursor = conn.cursor()
+    while True:
+        findings = queue.get()
+        if findings == "FINISHED":
+            conn.close()
+            return
+        for (extension_id, rule_id, file_name, count) in findings:
+            cursor.execute(
+                "INSERT INTO ExtensionAnalysisJS (extension_id, rule_id, file_name, count) VALUES (?, ?, ?, ?)",
+                (extension_id, rule_id, file_name, count)
+            )
+        conn.commit()
+
+def status_updater(ext_counter_queue, file_counter_queue, num_extensions):
+    """
+    Updates console in real-time to tell the user how many extensions (successfully and unsuccesfully) have been analysed.
+
+    Parameters:
+    ext_counter_queue (multiprocessing.Queue): Queue to track number of extensions analysed.
+    file_counter_queue (multiprocessing Queue): Queue to track success and failure for files
+    num_extensions (int): Total number of extensions.
+    """
+
+    # Counts
+    extension_count = 0
+    file_success_count = 0
+    file_fail_count = 0
+    processed = 0
+
+    # Prints three lines to be used in formatting later
     print("Extensions analysed:")
     print("Files analysed successfully:")
     print("Files analysed unsuccessfully:")
 
-    # Count
-    extension_count = 0
-    file_success_count = 0
-    file_fail_count = 0
+    while processed < num_extensions:
+        if not ext_counter_queue.empty():
+            status = ext_counter_queue.get()
+            extension_count += 1
+            processed += 1
 
-    # Retrieves rule_id from AnalysisRule, to be used as FK when inserting into ExtensionAnalysisJS
-    cursor.execute("SELECT rule_id, name FROM AnalysisRule")
-    pattern_to_rule = {
-        name: rule_id
-        for rule_id, name in cursor.fetchall()
-    }
-
-    # Iterates through each extension
-    for extension in extensions:
-        extension_dir = os.path.join(extract_path, extension[1])
-        extension_count += 1
-        
-        # Collect JS files, then iterate through each one
-        js_files = collect_js_files(extension_dir)
-        for js_file in js_files:
-            # Retrieves analysed AST
-            patterns = analyse_js_file(js_file)
-
-            if patterns:
+        if not file_counter_queue.empty():
+            status = file_counter_queue.get()
+            if status == "success":
                 file_success_count += 1
-
-                # Loops through patterns, processes information and inserts into database
-                for pattern, count in patterns.items():
-                    rule_id = pattern_to_rule.get(pattern)  
-                    cursor.execute(
-                        "INSERT INTO ExtensionAnalysisJS (extension_id, rule_id, file_name, count) VALUES (?, ?, ?, ?)",
-                        (extension[0], rule_id, js_file, count)
-                    )
             else:
                 file_fail_count += 1
-        
-        sys.stdout.write("\033[F\033[K" * 3)  # Move up and clear two lines
+
+        sys.stdout.write("\033[F\033[K" * 3)  # Move up and clear three lines
         sys.stdout.write(f"Extensions analysed:             {extension_count}\n")
         sys.stdout.write(f"Files analysed successfully:     {file_success_count}\n")
         sys.stdout.write(f"Files analysed unsuccessfully:   {file_fail_count}\n")
         sys.stdout.flush()
-        time.sleep(0.01)
-                        
-        conn.commit()
+        time.sleep(0.02)
 
 def main(config):
     """
@@ -188,11 +229,42 @@ def main(config):
     db_file = config["database"]["db"]
     extract_path = config["storage"]["extract_path"]
 
-    # Initialise database connection, populate AnalysisRules, retrieve extensions to analyse, call "analyse_extensions" to start the analysis
+    # Retrieve extensions to analyse, call "analyse_extensions" to start the analysis
     conn = init_db_connection(db_file)
     init_analysis_rules(conn)
     extensions = get_extensions_to_analyse(conn)
-    analyse_extensions(conn, extract_path, extensions)
+
+    # Generates the rule map 
+    cursor = conn.cursor()
+    cursor.execute("SELECT rule_id, name FROM AnalysisRule")
+    rule_map = {name: rule_id for rule_id, name in cursor.fetchall()}
+
+    conn.close()
+
+    manager = multiprocessing.Manager()
+
+    queue = manager.Queue()
+    ext_counter_queue = manager.Queue()
+    file_counter_queue = manager.Queue()
+
+    writer_process = multiprocessing.Process(target=insert_data, args=(db_file, queue))
+    writer_process.start()
+
+    status_thread = threading.Thread(target=status_updater, args=(ext_counter_queue, file_counter_queue, len(extensions)))
+    status_thread.start()
+
+    cpu_count = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=cpu_count - 1) 
+
+    for extension in extensions:
+        pool.apply_async(analyse_extensions, args=(extract_path, extension[0], extension[1], rule_map, queue, ext_counter_queue, file_counter_queue))
+
+    pool.close()
+    pool.join()
+
+    queue.put("FINISHED")
+    writer_process.join()
+    status_thread.join()
 
     # Formats and outputs execution time
     end_time = time.time()
@@ -203,5 +275,3 @@ def main(config):
     seconds = int(elapsed_time % 60)
 
     print(f"Execution time: {hours:02d}hrs, {minutes:02d}mins, {seconds:02d}secs")
-
-    conn.close()

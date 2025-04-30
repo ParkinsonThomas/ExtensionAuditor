@@ -5,6 +5,8 @@ import json
 import time
 import sys
 import subprocess
+import multiprocessing
+import threading
 
 # Initialises and returns database connection
 def init_db_connection(db_file):
@@ -16,38 +18,23 @@ def get_extensions_to_analyse(conn):
     cursor.execute("SELECT extension_id, extension_guid FROM Extension")
     return cursor.fetchall()
 
-def collect_js_files(extension_path):
-    """
-    Collects all JavaScript files from the inputted extension directory.
-
-    Parameters:
-    extension_path (str): Path to the directory of an extracted extension.
-
-    Returns:
-    list[str]: List of file paths to all JavaScript files for an extension.
-    """
-
-    js_files = []
-    for root, _, files in os.walk(extension_path):
-        for file in files:
-            if file.endswith(".js"):
-                js_files.append(os.path.join(root, file))
-    return js_files
-
-def analyse_files(conn, extract_path, guid, extension_id, entropy_filter):
+def analyse_files(queue, extract_path, guid, extension_id, entropy_filter, counter_queue):
     """
     Runs Gitleaks on an extracted Chrome extension and parses results.
     Inserts secrets with entropy above a certain threshold into the database.
 
     Parameters:
-    conn (sqlite3.Connection): Database connection.
+    queue (multiprocessing.Queue): Queue to store findings.
     extract_path (str): Directory for extracted extension.
     guid (str): Chrome Extension GUID.
     extension_id (int): Extension ID.
     entropy_filter (float): Minimum entropy threshold for filtering findings.
+    counter_queue (multiprocessing.Queue): Queue to store success/failure status.
     """
 
-    gitleaks_path = "gitleaks" 
+    gitleaks_path = "gitleaks"
+    success = False
+
     try:
         extension_dir = os.path.join(extract_path, guid)
 
@@ -68,8 +55,10 @@ def analyse_files(conn, extract_path, guid, extension_id, entropy_filter):
         text=True,
         )
 
-        if result.stdout:
+        # Used to store results, then added to the queue
+        findings = []
 
+        if result.stdout:
             # Parses output
             lines = result.stdout.splitlines()
             for line in lines:
@@ -88,36 +77,73 @@ def analyse_files(conn, extract_path, guid, extension_id, entropy_filter):
                 # Once all variables have been assigned data, insert_data is called
                 if all(var is not None for var in [secret, rule_id, entropy, file_name, line_num]):
                     if entropy > entropy_filter:
-                        insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_num)
+                        findings.append((extension_id, file_name, line_num, rule_id, secret, entropy))
                     
                     # Reset variables to None
                     secret, rule_id, entropy, file_name, line_num = None, None, None, None, None
-        return True
+        success = True
+        queue.put(findings)
 
     except subprocess.CalledProcessError as e:
-        return False
+        success = False
     
-def insert_data(conn, extension_id, secret, rule_id, entropy, file_name, line_num):
+    counter_queue.put("success" if success else "fail")
+    
+def insert_data(db_file, queue):
     """
     Creates an entry for a detected secret in the "ExtensionSecrets" table.
 
     Parameters:
-    conn (sqlite3.Connection): Database connection.
-    extension_id (int): Extension ID.
-    secret (str): The detected secret.
-    rule_id (str): Gitleaks rule that was triggered.
-    entropy (float): Entropy value of the detected secret.
-    file_name (str): File where the secret was found.
-    line_num (int): Line number where the secret was found.
+    db_file (str): Path to the database file.
+    queue (multiprocessing.Queue): Queue with findings to process.
     """
 
+    conn = init_db_connection(db_file)
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO ExtensionSecrets (extension_id, file_name, line, rule_id, secret, entropy)
-        VALUES (?, ?, ?, ?, ?, ?)""",
-        (extension_id, file_name, line_num, rule_id, secret, entropy)
-    )
-    conn.commit()
+    while True:
+        findings = queue.get()
+        if findings == "FINISHED":
+            conn.close()
+            return
+        for (extension_id, file_name, line_num, rule_id, secret, entropy) in findings:
+            cursor.execute("""
+                INSERT INTO ExtensionSecrets (extension_id, file_name, line, rule_id, secret, entropy)
+                VALUES (?, ?, ?, ?, ?, ?)""",
+                (extension_id, file_name, line_num, rule_id, secret, entropy)
+            )
+        conn.commit()
+    
+
+def status_updater(counter_queue, num_extensions):
+    """
+    Updates console in real-time to tell the user how many extensions (successfully and unsuccesfully) have been analysed.
+
+    Parameters:
+    counter_queue (multiprocessing.Queue): Queue with success/failure statuses.
+    num_extensions (int): Total number of extensions.
+    """
+
+    # Counts
+    success_count = 0
+    fail_count = 0
+    processed = 0
+
+    # Prints two lines to be used in formatting later
+    print("Extensions analysed successfully:")
+    print("Extensions analysed unsuccessfully:")
+
+    while processed < num_extensions:
+        status = counter_queue.get()
+        if status == "success":
+            success_count += 1
+        else:
+            fail_count += 1
+        processed += 1
+
+        sys.stdout.write("\033[F\033[K" * 2)  # Move up two lines and clear
+        sys.stdout.write(f"Extensions analysed successfully:    {success_count}\n")
+        sys.stdout.write(f"Extensions analysed unsuccessfully:  {fail_count}\n")
+        sys.stdout.flush()
 
 def main(config):
     """
@@ -143,28 +169,33 @@ def main(config):
     # Initialise database connection and retrieve extensions to analyse
     conn = init_db_connection(db_file)
     extensions = get_extensions_to_analyse(conn)
+    conn.close()
 
-    # Counts
-    success_count = 0
-    fail_count = 0
+    manager = multiprocessing.Manager()
 
-    # Prints two lines for formatting later
-    print("Extensions analysed successfully:")
-    print("Extensions analysed unsuccessfully:")
+    queue = manager.Queue()
+    counter_queue = manager.Queue()
 
-    # Iterates through extensions
+    writer_process = multiprocessing.Process(target=insert_data, args=(db_file, queue))
+    writer_process.start()
+
+    status_thread = threading.Thread(target=status_updater, args=(counter_queue, len(extensions)))
+    status_thread.start()
+
+
+    cpu_count = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=cpu_count - 1) 
+
     for extension in extensions:
-        result = analyse_files(conn, extract_path, extension[1], extension[0], entropy_filter)
-        if result:
-            success_count += 1
-        else:
-            fail_count += 1
-        
-        sys.stdout.write("\033[F\033[K" * 2)  # Move up and clear two lines
-        sys.stdout.write(f"Extensions analysed successfully:    {success_count}\n")
-        sys.stdout.write(f"Extensions analysed unsuccessfully:  {fail_count}\n")
-        sys.stdout.flush()
-        time.sleep(0.01)
+        pool.apply_async(analyse_files, args=(queue, extract_path, extension[1], extension[0], entropy_filter, counter_queue))
+
+    pool.close()
+    pool.join()
+
+    queue.put("FINISHED")
+    writer_process.join()
+    status_thread.join()
+
 
     # Formats and outputs execution time
     end_time = time.time()
