@@ -80,7 +80,7 @@ def get_extension_guids(url):
         return []
 
 # Saves GUIDs to txt file
-def save_to_file(guids, url):
+def save_to_file(guids, url, filename):
     """
     Saves a list of extension GUIDs to a txt file.
 
@@ -88,8 +88,6 @@ def save_to_file(guids, url):
     guids (list[str]): List of extension GUIDs to save.
     url (str): Chrome Web Store URL of the GUIDs.
     """
-
-    filename = "GUID_List_3.txt"
 
     # If file exists GUIDs are appended, if not, file created and written to 
     mode = "a" if os.path.exists(filename) else "w"
@@ -106,8 +104,9 @@ def main(config):
     to generate list of extension GUIDs.
 
     Parameters:
-    config: Configuration settings (unused here but standard for modularity).
+    config: Configuration settings (retrieves name for GUID list).
     """
+    guids_file = config["guid_list"]["name"]
 
     # Categories for Chrome Web Store
     url_categories = [
@@ -136,6 +135,6 @@ def main(config):
         guids = get_extension_guids(url)
 
         if guids:
-            save_to_file(guids, url)
+            save_to_file(guids, url, guids_file)
         else:
             print(f"No GUIDs were found on {url_categories[0]}.")

@@ -3,6 +3,10 @@
         "db": "ExtensionDB.db"
     },
 
+    "guid_list": {
+        "name": "GUID_List200.txt"
+    },
+
     "storage": {
         "download_path": "Extensions_Downloaded",
         "extract_path": "Extensions_Extracted"

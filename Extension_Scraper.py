@@ -231,7 +231,7 @@ def main(config):
     Reads GUIDs from file, then runs "run_scraper" which starts the operations.
 
     Parameters:
-    config: Configuration settings (used for database and directories).
+    config: Configuration settings (used for database, directories and guid list).
     """
     # Start time
     start_time = time.time()
@@ -240,6 +240,7 @@ def main(config):
     db_file = config["database"]["db"]
     download_dir = config["storage"]["download_path"]
     extract_dir = config["storage"]["extract_path"]
+    guids_file = config["guid_list"]["name"]
 
     # Counts for output
     success_count = 0
@@ -247,7 +248,6 @@ def main(config):
     skipped_count = 0
 
     # Processes GUIDs from txt file into a list (guids)
-    guids_file = "GUID_List10.txt"
     with open(guids_file, "r") as file:
         guids = [line.strip() for line in file.readlines()]
 
