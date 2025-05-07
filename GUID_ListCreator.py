@@ -89,7 +89,7 @@ def save_to_file(guids, url):
     url (str): Chrome Web Store URL of the GUIDs.
     """
 
-    filename = "GUID_List.txt"
+    filename = "GUID_List_3.txt"
 
     # If file exists GUIDs are appended, if not, file created and written to 
     mode = "a" if os.path.exists(filename) else "w"

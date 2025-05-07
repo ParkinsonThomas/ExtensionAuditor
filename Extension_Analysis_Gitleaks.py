@@ -53,6 +53,7 @@ def analyse_files(queue, extract_path, guid, extension_id, entropy_filter, count
         ],
         capture_output=True,
         text=True,
+        timeout=180
         )
 
         # Used to store results, then added to the queue
@@ -83,11 +84,17 @@ def analyse_files(queue, extract_path, guid, extension_id, entropy_filter, count
                     secret, rule_id, entropy, file_name, line_num = None, None, None, None, None
         success = True
         queue.put(findings)
+        
+    except subprocess.TimeoutExpired:
+        queue.put([])     # No findings - ensures status_updater remains correct in cases of error
+        success = False
 
     except subprocess.CalledProcessError as e:
         success = False
+        queue.put([])
     
-    counter_queue.put("success" if success else "fail")
+    finally:
+        counter_queue.put("success" if success else "fail")
     
 def insert_data(db_file, queue):
     """

@@ -32,7 +32,7 @@ def run_test_module(label, module_name):
     except ModuleNotFoundError as e:
         print(f"ERROR: {e}")
 def main():
-    cov = coverage.Coverage(source=["."], omit=["*/unit_tests/*", "*/venv/*"])
+    cov = coverage.Coverage(source=["."], omit=["*/unit_tests/*", "*/venv/*", "*/DB_Wipe.py", "*/main.py", "*/Display.py", "*/Run_Unit_Tests.py"])
     cov.start()
 
     for label, module_name in unit_tests:

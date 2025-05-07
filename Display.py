@@ -1,4 +1,5 @@
 import sqlite3
+import os
 
 # Initialises and returns database connection
 def init_db_connection(db_file):
@@ -181,6 +182,70 @@ def database_stats(conn):
 
     get_detailed_dangerous_patterns(conn, len(extensions))
 
+def display_extension(conn, guid):
+    cursor = conn.cursor()
+    cursor.execute("""SELECT extension_id, name, author, version, downloaded_date FROM Extension WHERE extension_guid = ?""", (guid,))
+    result = cursor.fetchone()
+
+    print("")
+    print(f"Extension:  {guid}")
+    print("")
+    print("Basic Information")
+    print(f"Name:       {result[1]}")
+    print(f"Author:     {result[2]}")
+    print(f"Version:    {result[3]}")
+    print(f"Downloaded: {result[4]}")
+    
+    cursor.execute("""SELECT A.api_url
+          FROM API       AS A
+          JOIN ExtensionAPIs AS EA
+            ON A.api_id = EA.api_id
+         WHERE EA.extension_id = ?""", (result[0],))
+    apis = cursor.fetchall()
+
+    print("")
+    print("APIs Present")
+    for i in range(len(apis)):
+        print(apis[i][0])
+
+    cursor.execute("""SELECT file_name, line, rule_id, secret, entropy FROM ExtensionSecrets WHERE extension_id = ?""", (result[0],))
+    secrets = cursor.fetchall()
+
+    print("")
+    print("Secrets Detected")
+    if secrets == []:
+        print("No secrets detected...")
+    else:
+        print("")
+        for secret in secrets:
+            file = secret[0]
+            print("")
+            print(f"File:       {file.rsplit("/", 1)[1]}")
+            print(f"Line:       {secret[1]}")
+            print(f"Rule ID:    {secret[2]}")
+            print(f"Secret:     {secret[3]}")
+            print(f"Entropy:    {secret[4]}")
+
+    cursor.execute("""SELECT
+          EAJS.file_name,
+          EAJS.count,
+          AR.name     AS rule_name
+        FROM ExtensionAnalysisJS AS EAJS
+        JOIN AnalysisRule        AS AR
+          ON EAJS.rule_id = AR.rule_id
+        WHERE EAJS.extension_id = ?""", (result[0],))
+    
+    patterns = cursor.fetchall()
+
+    print("")
+    print("Malicious Patterns Detected")
+    for pattern in patterns:
+            file = pattern[0]
+            print("")
+            print(f"Pattern:    {pattern[2]}")
+            print(f"File:       {file.rsplit("/", 1)[1]}")
+            print(f"Count:      {pattern[1]}")
+
 def main(config):
     """
     Main function to initialise database connection and display stats.
@@ -194,5 +259,26 @@ def main(config):
 
     # Initialise database connection
     conn = init_db_connection(db_file)
-    database_stats(conn)
+
+    option = 0
+    while option != 9:
+        print("")
+        print("Welcome to the Chrome Extension Auditor...")
+        print("1. Display database statistics.")
+        print("2. Search for extension.")
+        print("9. Exit.")
+        option = int(input("Enter option: "))
+
+        if option == 1:
+            database_stats(conn)
+        if option == 2:
+            guid = input("Please enter extension GUID: ")
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM Extension WHERE extension_guid = ?", (guid, ))
+            extension = cursor.fetchone()
+            if extension is None:
+                print("Error... extension GUID does not exist.")
+            else:
+                display_extension(conn, guid)
+    
     conn.close()

@@ -9,7 +9,7 @@
     },
 
     "entropy_filtering": {
-        "enabled": false,
+        "enabled": true,
         "entropy_filter": 3.5
     },
 
@@ -28,15 +28,15 @@
         },
         {
             "name": "API_Scraper",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "Extension_Analysis_Gitleaks",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "Extension_Analysis_Babel",
-            "enabled": false
+            "enabled": true
         },
         {
             "name": "Display",
