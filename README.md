@@ -17,7 +17,7 @@ Please note, the tool was developed on Ubuntu Linux, please use a Linux system f
 # Installation
 
 Please follow these steps to install the Chrome Extension Auditor.
-1. Clone the Repository
+1. Clone the Repository\n
 The repository can be found using the URL provided below:
 https://github.com/ParkinsonThomas/ExtensionAuditor
 
