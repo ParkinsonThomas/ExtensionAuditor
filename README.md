@@ -47,6 +47,19 @@ Underneath these options are the modules listed, by default these are all set to
 
 To add more modules simply copy the format for other modules with your module name.
 
+# Directory Layout
+
+ExtensionAuditor/  
+├─ main.py                   – dispatcher  
+├─ config.json               – runtime switches  
+├─ ExtensionDB.db            – SQLite schema  
+├─ node_modules/             – JS deps (auto-generated)  
+├─ Extensions_Downloaded/    – .crx downloads  
+├─ Extensions_Extracted/     – unpacked extensions  
+├─ unit_tests/               – unit tests  
+├─ *.py                      – functional modules  
+└─ README.md
+
 # Usage
 
 Before running, a DeepSeek API needs to be exported into the terminal (for API_Auditor.py), this can be done by running the following:  
