@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import sys
 import time
+import re
 
 # Initialises and returns database connection
 def init_db_connection(db_file):
@@ -174,7 +175,9 @@ def insert_extension_data(conn, extension_guid, manifest_data, absolute_path):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         extension_values
     )
+    extension_id = cursor.lastrowid
     conn.commit()
+    return extension_id
 
 def extension_exists(conn, extension_guid):
     """
@@ -218,12 +221,62 @@ def run_scraper(conn, extension_guid, download_dir, extract_dir):
     # Scrapes metadata by calling functions
     extract_path = extract_extension(file_path, extract_dir)
     manifest_data = parse_manifest(os.path.join(extract_path, "manifest.json"))
+    permissions = extract_permissions(manifest_data)
     scraped_data = scrape_extension_data(extension_guid)
     manifest_data.update(scraped_data)
 
-    insert_extension_data(conn, extension_guid, manifest_data, extract_path)
-    #print("Extension data inserted successfully.")
+    extension_id = insert_extension_data(conn, extension_guid, manifest_data, extract_path)
+    name_to_id = insert_permissions(conn, permissions)
+    insert_extension_permissions(conn, name_to_id, extension_id)
+
     return ("success")
+
+def insert_permissions(conn, permissions):
+    cursor = conn.cursor()
+    name_to_id = {}
+
+    for name in permissions:
+        cursor.execute("SELECT permission_id FROM Permissions WHERE name = ?", (name,))
+        perm_row = cursor.fetchone()
+        
+        if perm_row:
+            perm_id = perm_row[0]
+        else:
+            cursor.execute("INSERT INTO Permissions (name) VALUES (?)", (name,))
+            perm_id = cursor.lastrowid
+        name_to_id[name] = perm_id
+    
+    conn.commit()
+    return name_to_id
+
+def insert_extension_permissions(conn, name_to_id, extension_id):
+    cursor = conn.cursor()
+    granted = True
+
+    for name, perm_id in name_to_id.items():
+        cursor.execute("SELECT 1 FROM ExtensionPermissions WHERE extension_id = ? AND permission_id = ?", (extension_id, perm_id))
+
+        if cursor.fetchone() is None:
+            cursor.execute("INSERT INTO ExtensionPermissions (extension_id, permission_id, granted) VALUES  (?, ?, ?)", (extension_id, perm_id, int(bool(granted))))
+    conn.commit()
+
+def extract_permissions(manifest_data):
+    host_pattern = re.compile(r"^(\*|https?://)")
+
+    raw_perms     = manifest_data.get("permissions", [])
+    raw_optional  = manifest_data.get("optional_permissions", [])
+    
+    def is_standard(perm):
+        if host_pattern.match(perm):
+            return False
+        if "/" in perm or "\\" in perm:
+            return False
+        return True
+
+    std_perms    = {p for p in raw_perms    if is_standard(p)}
+    std_optional = {p for p in raw_optional if is_standard(p)}
+
+    return sorted(std_perms | std_optional)
 
 def main(config):
     """

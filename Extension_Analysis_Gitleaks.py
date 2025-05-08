@@ -89,7 +89,7 @@ def analyse_files(queue, extract_path, guid, extension_id, entropy_filter, count
         queue.put([])     # No findings - ensures status_updater remains correct in cases of error
         success = False
 
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         success = False
         queue.put([])
     

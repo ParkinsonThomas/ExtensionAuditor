@@ -133,22 +133,28 @@ def analyse_extensions(extract_path, extension_id, extension_guid, rule_map, que
     success = False
 
     for js_file in js_files:
-        # Retrieves analysed AST
-        patterns = analyse_js_file(js_file)
+        try:
+            # Retrieves analysed AST
+            patterns = analyse_js_file(js_file)
 
-        if patterns:
-            success = True
-            file_counter_queue.put("success")
-            # Loops through patterns, processes information and inserts into database
-            for pattern, count in patterns.items():
-                rule_id = rule_map.get(pattern)
-                if rule_id:
-                    findings.append((extension_id, rule_id, js_file, count))
-        else:
+            if patterns:
+                success = True
+                file_counter_queue.put("success")
+                # Loops through patterns, processes information and inserts into database
+                for pattern, count in patterns.items():
+                    rule_id = rule_map.get(pattern)
+                    if rule_id:
+                        findings.append((extension_id, rule_id, js_file, count))
+            else:
+                file_counter_queue.put("fail")
+        except Exception:
             file_counter_queue.put("fail")
-
-    queue.put(findings)
-    ext_counter_queue.put("success" if success else "fail")
+    try:
+        queue.put(findings)
+    except Exception:
+        success = False
+    finally:
+        ext_counter_queue.put("success" if success else "fail")
     
                         
 def insert_data(db_file, queue):

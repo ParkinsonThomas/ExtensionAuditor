@@ -4,7 +4,7 @@
     },
 
     "guid_list": {
-        "name": "GUID_List200.txt"
+        "name": "GUID_List.txt"
     },
 
     "storage": {
@@ -36,11 +36,11 @@
         },
         {
             "name": "Extension_Analysis_Gitleaks",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "Extension_Analysis_Babel",
-            "enabled": true
+            "enabled": false
         },
         {
             "name": "Display",

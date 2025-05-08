@@ -208,6 +208,23 @@ def display_extension(conn, guid):
     for i in range(len(apis)):
         print(apis[i][0])
 
+    cursor.execute("""
+        SELECT DISTINCT p.name
+          FROM Permissions AS p
+          JOIN ExtensionPermissions AS ep
+            ON p.permission_id = ep.permission_id
+         WHERE ep.extension_id = ?
+           AND ep.granted = 1
+    """, (result[0],))
+    permissions = cursor.fetchall()
+    print("")
+    print("Permissions")
+    if permissions == []:
+        print("No permissions...")
+    else:
+        for permission in permissions:
+            print(permission[0])
+
     cursor.execute("""SELECT file_name, line, rule_id, secret, entropy FROM ExtensionSecrets WHERE extension_id = ?""", (result[0],))
     secrets = cursor.fetchall()
 

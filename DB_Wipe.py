@@ -11,7 +11,10 @@ def wipe_db(conn):
     cursor.execute("DELETE FROM ExtensionAnalysisJS")
     cursor.execute("DELETE FROM ExtensionAPIs")
     cursor.execute("DELETE FROM ExtensionSecrets")
-    
+    cursor.execute("DELETE FROM ExtensionPermissions")
+    cursor.execute("DELETE FROM Permissions")
+    cursor.execute("DELETE FROM AnalysisRule")
+
     conn.commit()
 
 def main():
